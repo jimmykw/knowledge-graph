@@ -1,0 +1,28 @@
+app:
+  max-pages: 50
+  chunk-tokens: 1000
+  pool-size: 4
+
+spring:
+  ai:
+    model:
+      chat: openai
+    openai:
+      base-url: https://opencode.ai/zen/go/v1
+      api-key: ${OPENAI_API_KEY:sk-sfPo9bafX4pOKwIu1hVQQz9w0FDrxXDdhEjIeRTsMvtF7DcR2qd3XhwsxHxUqSGe}
+      chat:
+        model: glm-5.2
+        temperature: 0.2
+  neo4j:
+    uri: bolt://localhost:7687
+    authentication:
+      username: neo4j
+      password: ${NEO4J_PASSWORD:neo4j-admin}
+
+server:
+  address: 127.0.0.1
+  port: 8080
+
+logging:
+  level:
+    com.example.knowledgegraph: DEBUG
