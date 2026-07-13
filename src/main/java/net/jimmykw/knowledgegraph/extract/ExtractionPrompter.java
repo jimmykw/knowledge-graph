@@ -5,6 +5,7 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.converter.BeanOutputConverter;
 
 import net.jimmykw.knowledgegraph.extract.ExtractionRecords.ExtractionResult;
+import net.jimmykw.knowledgegraph.util.JsonRepair;
 
 import io.vavr.control.Try;
 import lombok.RequiredArgsConstructor;
@@ -40,7 +41,7 @@ public class ExtractionPrompter {
         }
         val parsed = Try.of(() -> converter.convert(content));
         if (parsed.isFailure()) {
-            val repaired = Try.of(() -> converter.convert(repairJson(content)));
+            val repaired = Try.of(() -> converter.convert(JsonRepair.repair(content)));
             if (repaired.isSuccess()) {
                 log.warn("LLM response required JSON repair (attempt {})", attempt);
                 return repaired.get();
@@ -49,18 +50,5 @@ public class ExtractionPrompter {
                     attempt, content, parsed.getCause());
         }
         return parsed.get();
-    }
-
-    static String repairJson(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return raw;
-        }
-        var repaired = raw;
-        if (repaired.contains("```")) {
-            repaired = repaired.replaceAll("(?s)```(?:json)?\\s*", "");
-        }
-        repaired = repaired.replaceAll("(\"[^\"]+\"\\s*:\\s*)([A-Za-z][^\"]*\")", "$1 \"$2");
-        repaired = repaired.replaceAll(",\\s*([}\\]])", "$1");
-        return repaired;
     }
 }

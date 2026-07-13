@@ -19,6 +19,8 @@ import lombok.val;
 @RequiredArgsConstructor
 public class Neo4jGraphWriter {
 
+    static final String SCHEMA_ID = "default";
+
     private final Driver driver;
 
     public Option<Long> findDocumentId(String hash) {
@@ -29,7 +31,7 @@ public class Neo4jGraphWriter {
     }
 
     public long mergeDocument(String hash, String filename) {
-        return write(session -> {
+        val id = write(session -> {
             val record = session.run(
                     "MERGE (d:Document {hash: $hash}) "
                             + "SET d.filename = $filename, d.uploadedAt = $uploadedAt "
@@ -40,10 +42,12 @@ public class Neo4jGraphWriter {
                     .single();
             return record.get("id").asLong();
         });
+        recordSchemaLabel("Document");
+        return id;
     }
 
     public long mergeEntity(String name, String nameNorm, String label, String description, String hash) {
-        return write(session -> {
+        val id = write(session -> {
             val record = session.run(
                     "CALL apoc.merge.node("
                             + "[$label], "
@@ -59,10 +63,12 @@ public class Neo4jGraphWriter {
                     .single();
             return record.get("id").asLong();
         });
+        recordSchemaLabel(label);
+        return id;
     }
 
     public long mergeRelationship(long srcId, long tgtId, String type, String description) {
-        return write(session -> {
+        val id = write(session -> {
             val record = session.run(
                     "MATCH (a), (b) WHERE id(a) = $srcId AND id(b) = $tgtId "
                             + "CALL apoc.merge.relationship(a, $type, {description: $description}, {}, b, {}) YIELD rel "
@@ -74,6 +80,47 @@ public class Neo4jGraphWriter {
                     .single();
             return record.get("id").asLong();
         });
+        recordSchemaRelType(type);
+        return id;
+    }
+
+    public Option<SchemaSnapshot> readSchema() {
+        return write(session -> {
+            val result = session.run(
+                    "MATCH (s:Schema {id: $id}) RETURN s.labels AS labels, s.relTypes AS relTypes",
+                    Map.of("id", SCHEMA_ID));
+            if (!result.hasNext()) {
+                return Option.<SchemaSnapshot>none();
+            }
+            val record = result.next();
+            val labels = record.get("labels").isNull()
+                    ? java.util.List.<String>of()
+                    : record.get("labels").asList(value -> value.asString());
+            val relTypes = record.get("relTypes").isNull()
+                    ? java.util.List.<String>of()
+                    : record.get("relTypes").asList(value -> value.asString());
+            return Option.some(new SchemaSnapshot(labels, relTypes));
+        });
+    }
+
+    private void recordSchemaLabel(String label) {
+        write(session -> session.run(
+                "MERGE (s:Schema {id: $id}) "
+                        + "SET s.labels = apoc.coll.union(coalesce(s.labels, []), [$label]), "
+                        + "    s.updatedAt = $updatedAt",
+                Map.of("id", SCHEMA_ID,
+                        "label", label,
+                        "updatedAt", Instant.now().toString())));
+    }
+
+    private void recordSchemaRelType(String type) {
+        write(session -> session.run(
+                "MERGE (s:Schema {id: $id}) "
+                        + "SET s.relTypes = apoc.coll.union(coalesce(s.relTypes, []), [$type]), "
+                        + "    s.updatedAt = $updatedAt",
+                Map.of("id", SCHEMA_ID,
+                        "type", type,
+                        "updatedAt", Instant.now().toString())));
     }
 
     private <T> T write(Function<Session, T> work) {

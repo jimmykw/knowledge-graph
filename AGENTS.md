@@ -67,4 +67,4 @@ A `procurement.pdf` sample file is committed at the repo root for testing.
 
 - Re-uploading the same PDF returns `SKIPPED_DUPLICATE` with zeroed counts and makes **no LLM calls**. To re-test extraction against the same file, delete the `:Document {hash}` node in Neo4j first, or change the bytes.
 - Encrypted/image-only PDFs yield empty text → `200` with `nodeCount=0` (not an error).
-- `SPEC.md` documents the original design intent but has drifted from the code in places (e.g. it still shows the buggy `apoc.merge.relationship(..., true)` call). Trust the code over `SPEC.md` when they conflict.
+- `SPEC_chat.md` documents the original design intent but has drifted from the code in places (e.g. it still shows the buggy `apoc.merge.relationship(..., true)` call). Trust the code over `SPEC_chat.md` when they conflict.

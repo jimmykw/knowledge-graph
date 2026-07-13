@@ -5,6 +5,7 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import net.jimmykw.knowledgegraph.chat.ChatRecords.CypherGeneration;
 import net.jimmykw.knowledgegraph.extract.ExtractionRecords.ExtractionResult;
 
 @Configuration
@@ -18,5 +19,10 @@ public class ChatClientConfig {
     @Bean
     BeanOutputConverter<ExtractionResult> extractionOutputConverter() {
         return new BeanOutputConverter<>(ExtractionResult.class);
+    }
+
+    @Bean
+    BeanOutputConverter<CypherGeneration> cypherOutputConverter() {
+        return new BeanOutputConverter<>(CypherGeneration.class);
     }
 }

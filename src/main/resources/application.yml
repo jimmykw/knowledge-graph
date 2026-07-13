@@ -2,6 +2,11 @@ app:
   max-pages: 50
   chunk-tokens: 1000
   pool-size: 4
+  chat:
+    result-row-limit: 50
+    max-prompt-length: 2000
+    max-attempts: 3
+    query-timeout-ms: 10000
 
 spring:
   ai:
@@ -25,4 +30,4 @@ server:
 
 logging:
   level:
-    com.example.knowledgegraph: DEBUG
+    net.jimmykw.knowledgegraph: DEBUG
