@@ -9,5 +9,6 @@ public record ChatResponse(
         List<Map<String, Object>> results,
         boolean truncated,
         int rowCount,
-        String error) {
+        String error,
+        List<String> skillsExecuted) {
 }

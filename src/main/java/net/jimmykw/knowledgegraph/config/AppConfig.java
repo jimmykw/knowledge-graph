@@ -6,11 +6,9 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import net.jimmykw.knowledgegraph.chat.AnswerSynthesisService;
-import net.jimmykw.knowledgegraph.chat.ChatRecords.CypherGeneration;
 import net.jimmykw.knowledgegraph.chat.ChatService;
 import net.jimmykw.knowledgegraph.chat.CypherExecutor;
-import net.jimmykw.knowledgegraph.chat.CypherGenerationService;
+import net.jimmykw.knowledgegraph.chat.GraphTools;
 import net.jimmykw.knowledgegraph.chat.SchemaService;
 import net.jimmykw.knowledgegraph.extract.EntityExtractionService;
 import net.jimmykw.knowledgegraph.extract.ExtractionPrompter;
@@ -36,13 +34,13 @@ public class AppConfig {
 
     @Bean
     EntityExtractionService entityExtractionService(ExtractionPrompter prompter, Neo4jGraphWriter writer,
-                                                      AppProperties appProperties) {
+                                                       AppProperties appProperties) {
         return new EntityExtractionService(prompter, writer, appProperties);
     }
 
     @Bean
     RelationshipExtractionService relationshipExtractionService(ExtractionPrompter prompter, Neo4jGraphWriter writer,
-                                                                  AppProperties appProperties) {
+                                                                   AppProperties appProperties) {
         return new RelationshipExtractionService(prompter, writer, appProperties);
     }
 
@@ -63,21 +61,13 @@ public class AppConfig {
     }
 
     @Bean
-    CypherGenerationService cypherGenerationService(ChatClient chatClient,
-                                                     BeanOutputConverter<CypherGeneration> converter) {
-        return new CypherGenerationService(chatClient, converter);
+    GraphTools graphTools(SchemaService schemaService, CypherExecutor cypherExecutor, Driver driver,
+                            AppProperties appProperties) {
+        return new GraphTools(schemaService, cypherExecutor, driver, appProperties);
     }
 
     @Bean
-    AnswerSynthesisService answerSynthesisService(ChatClient chatClient) {
-        return new AnswerSynthesisService(chatClient);
-    }
-
-    @Bean
-    ChatService chatService(SchemaService schemaService, CypherGenerationService cypherGenerationService,
-                             CypherExecutor cypherExecutor, AnswerSynthesisService answerSynthesisService,
-                             AppProperties appProperties) {
-        return new ChatService(schemaService, cypherGenerationService, cypherExecutor,
-                answerSynthesisService, appProperties);
+    ChatService chatService(ChatClient chatChatClient, AppProperties appProperties) {
+        return new ChatService(chatChatClient, appProperties);
     }
 }

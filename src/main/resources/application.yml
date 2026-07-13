@@ -5,7 +5,7 @@ app:
   chat:
     result-row-limit: 50
     max-prompt-length: 2000
-    max-attempts: 3
+    max-tool-call-rounds: 10
     query-timeout-ms: 10000
 
 spring:
