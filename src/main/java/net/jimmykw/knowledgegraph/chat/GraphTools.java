@@ -62,6 +62,16 @@ public class GraphTools {
     private final Driver driver;
     private final AppProperties appProperties;
 
+    private static final ThreadLocal<ToolTrace> CURRENT_TRACE = new ThreadLocal<>();
+
+    public static void setTrace(ToolTrace trace) {
+        CURRENT_TRACE.set(trace);
+    }
+
+    public static void clearTrace() {
+        CURRENT_TRACE.remove();
+    }
+
     @Tool(description = "Get the knowledge graph schema: node labels and relationship types. "
             + "Call this first to learn which labels and relationship types exist before writing Cypher.")
     public String getGraphSchema() {
@@ -127,6 +137,10 @@ public class GraphTools {
     }
 
     private List<Record> runRead(String cypher, Map<String, Object> params) {
+        val trace = CURRENT_TRACE.get();
+        if (trace != null) {
+            trace.recordCypherQuery(cypher);
+        }
         val chat = appProperties.chat();
         return Try.withResources(() -> driver.session())
                 .of(session -> session.executeRead(tx -> runCapped(tx, cypher, params), transactionConfig(chat)))

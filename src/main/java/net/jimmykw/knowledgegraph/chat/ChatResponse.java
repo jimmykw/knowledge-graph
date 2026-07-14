@@ -10,5 +10,6 @@ public record ChatResponse(
         boolean truncated,
         int rowCount,
         String error,
-        List<String> skillsExecuted) {
+        List<String> skillsExecuted,
+        List<String> cypherQueries) {
 }
