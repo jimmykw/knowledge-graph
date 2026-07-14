@@ -4,6 +4,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import jakarta.annotation.PreDestroy;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -56,26 +57,21 @@ public class EntityExtractionService {
             return new Pass1Result(CanonicalIndex.empty(), 0, HashMap.empty(), 0);
         }
 
+        val total = chunks.length();
+        val completed = new AtomicInteger(0);
+        log.info("Pass 1: extracting entities from {} chunk(s)...", total);
+
+        val llmStart = System.nanoTime();
         val futures = chunks.map(chunk -> {
             val prompt = buildPrompt(chunk);
-            return CompletableFuture.supplyAsync(() -> prompter.callWithRetry(prompt), executor);
+            return CompletableFuture.supplyAsync(() -> prompter.callWithRetry(prompt), executor)
+                    .whenComplete((result, error) -> logProgress(completed, total, result, error));
         });
         CompletableFuture.allOf(futures.toJavaArray(CompletableFuture[]::new)).join();
+        log.info("Pass 1: LLM calls completed in {}ms", (System.nanoTime() - llmStart) / 1_000_000L);
 
         val results = futures.map(CompletableFuture::join);
         val failedChunks = results.filter(Try::isFailure).length();
-
-        results.zipWithIndex().forEach(pair -> {
-            val result = pair._1;
-            val index = pair._2;
-            if (result.isSuccess()) {
-                val extraction = result.get();
-                log.debug("Pass 1 chunk {}: success — {} entities, {} relationships",
-                        index, extraction.entities().size(), extraction.relationships().size());
-            } else {
-                log.warn("Pass 1 chunk {}: failed — {}", index, result.getCause().toString());
-            }
-        });
 
         val candidateEntities = results
                 .filter(Try::isSuccess)
@@ -102,6 +98,19 @@ public class EntityExtractionService {
                 acc._3, entitiesNotCreated, failedChunks);
 
         return new Pass1Result(acc._1, acc._3, acc._2, failedChunks);
+    }
+
+    private static void logProgress(AtomicInteger completed, int total,
+                                     Try<ExtractionRecords.ExtractionResult> result, Throwable error) {
+        val done = completed.incrementAndGet();
+        if (error != null) {
+            log.warn("Pass 1: chunk {}/{} failed — {}", done, total, error.toString());
+        } else if (result.isSuccess()) {
+            log.info("Pass 1: chunk {}/{} completed ({}%) — {} entities",
+                    done, total, done * 100 / total, result.get().entities().size());
+        } else {
+            log.warn("Pass 1: chunk {}/{} failed — {}", done, total, result.getCause().toString());
+        }
     }
 
     private Tuple3<CanonicalIndex, HashMap<String, Integer>, Integer> mergeEntity(

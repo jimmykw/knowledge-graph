@@ -1,5 +1,5 @@
 app:
-  max-pages: 50
+  max-pages: 100
   chunk-tokens: 1000
   pool-size: 4
   chat:
@@ -9,6 +9,10 @@ app:
     query-timeout-ms: 10000
 
 spring:
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
   ai:
     model:
       chat: openai

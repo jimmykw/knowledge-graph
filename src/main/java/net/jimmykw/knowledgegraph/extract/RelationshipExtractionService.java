@@ -4,6 +4,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import jakarta.annotation.PreDestroy;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -65,26 +66,21 @@ public class RelationshipExtractionService {
             .map(entity -> "  " + entity.name() + " [" + entity.label() + "]")
             .mkString("\n"));
 
+        val total = chunks.length();
+        val completed = new AtomicInteger(0);
+        log.info("Pass 2: extracting relationships from {} chunk(s)...", total);
+
+        val llmStart = System.nanoTime();
         val futures = chunks.map(chunk -> {
             val prompt = buildPrompt(chunk, canonicalList);
-            return CompletableFuture.supplyAsync(() -> prompter.callWithRetry(prompt), executor);
+            return CompletableFuture.supplyAsync(() -> prompter.callWithRetry(prompt), executor)
+                    .whenComplete((result, error) -> logProgress(completed, total, result, error));
         });
         CompletableFuture.allOf(futures.toJavaArray(CompletableFuture[]::new)).join();
+        log.info("Pass 2: LLM calls completed in {}ms", (System.nanoTime() - llmStart) / 1_000_000L);
 
         val results = futures.map(CompletableFuture::join);
         val failedChunks = results.filter(Try::isFailure).length();
-
-        results.zipWithIndex().forEach(pair -> {
-            val result = pair._1;
-            val index = pair._2;
-            if (result.isSuccess()) {
-                val extraction = result.get();
-                log.debug("Pass 2 chunk {}: success — {} relationships",
-                        index, extraction.relationships().size());
-            } else {
-                log.warn("Pass 2 chunk {}: failed — {}", index, result.getCause().toString());
-            }
-        });
 
         val candidateRelationships = results
                 .filter(Try::isSuccess)
@@ -114,6 +110,19 @@ public class RelationshipExtractionService {
         log.info("Pass 2 complete: {} relationship(s) created, {} not created (dropped/duplicate), "
                 + "{} failed chunk(s)", acc._3, notCreated, failedChunks);
         return new Pass2Result(acc._3, acc._1, failedChunks);
+    }
+
+    private static void logProgress(AtomicInteger completed, int total,
+                                     Try<ExtractionRecords.ExtractionResult> result, Throwable error) {
+        val done = completed.incrementAndGet();
+        if (error != null) {
+            log.warn("Pass 2: chunk {}/{} failed — {}", done, total, error.toString());
+        } else if (result.isSuccess()) {
+            log.info("Pass 2: chunk {}/{} completed ({}%) — {} relationships",
+                    done, total, done * 100 / total, result.get().relationships().size());
+        } else {
+            log.warn("Pass 2: chunk {}/{} failed — {}", done, total, result.getCause().toString());
+        }
     }
 
     private Tuple3<HashMap<String, Integer>, HashSet<Tuple3<Long, Long, String>>, Integer> mergeRelationship(

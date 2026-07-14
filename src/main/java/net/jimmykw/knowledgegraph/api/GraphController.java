@@ -17,8 +17,10 @@ import net.jimmykw.knowledgegraph.ingest.PdfIngestionService;
 import net.jimmykw.knowledgegraph.ingest.PdfIngestionService.IngestionResult;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
+@Slf4j
 @RequiredArgsConstructor
 @RestController
 public class GraphController {
@@ -32,16 +34,24 @@ public class GraphController {
         validate(file);
 
         val start = System.nanoTime();
+        log.info("Building knowledge graph from '{}'", file.getOriginalFilename());
+
         val ingestion = ingestionService.ingest(file);
 
         if (PdfIngestionService.STATUS_SKIPPED_DUPLICATE.equals(ingestion.status())) {
             return skippedResponse(ingestion, start);
         }
 
+        val pass1Start = System.nanoTime();
         val pass1 = entityExtractionService.extract(ingestion.chunks(), ingestion.documentHash());
+        log.info("Pass 1 (entity extraction) done in {}ms", elapsed(pass1Start));
+
+        val pass2Start = System.nanoTime();
         val pass2 = relationshipExtractionService.extract(ingestion.chunks(),
                 pass1.canonicalIndex(), ingestion.documentHash());
+        log.info("Pass 2 (relationship extraction) done in {}ms", elapsed(pass2Start));
 
+        log.info("Knowledge graph built in {}ms", elapsed(start));
         return processedResponse(ingestion, pass1, pass2, start);
     }
 

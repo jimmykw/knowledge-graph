@@ -45,6 +45,7 @@ public class PdfIngestionService {
             return new IngestionResult(String.valueOf(existing.get()), hash, STATUS_SKIPPED_DUPLICATE, List.empty());
         }
 
+        log.info("Reading PDF: '{}', {} bytes", file.getOriginalFilename(), bytes.length);
         val pages = readPages(bytes);
         if (pages.size() > appProperties.maxPages()) {
             throw new MaxPagesExceededException("PDF has " + pages.size() + " pages, which exceeds the maximum of "
