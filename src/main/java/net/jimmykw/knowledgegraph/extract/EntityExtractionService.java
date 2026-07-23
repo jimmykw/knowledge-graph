@@ -18,9 +18,11 @@ import net.jimmykw.knowledgegraph.graph.EntityNormalizer;
 import net.jimmykw.knowledgegraph.graph.Neo4jGraphWriter;
 
 import io.vavr.Tuple;
-import io.vavr.Tuple3;
+import io.vavr.Tuple2;
 import io.vavr.collection.HashMap;
+import io.vavr.collection.HashSet;
 import io.vavr.collection.List;
+import io.vavr.collection.Map;
 import io.vavr.control.Try;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -89,15 +91,29 @@ public class EntityExtractionService {
 
         val allEntities = entityPartition._1;
 
-        val acc = allEntities.foldLeft(
-                Tuple.of(CanonicalIndex.empty(), HashMap.<String, Integer>empty(), 0),
-                (accumulator, entity) -> mergeEntity(accumulator, entity, hash));
+        val deduped = allEntities.foldLeft(
+                Tuple.of(HashSet.<Tuple2<String, String>>empty(), List.<ExtractionRecords.ExtractedEntity>empty()),
+                EntityExtractionService::dedupeEntity);
+        val uniqueEntities = deduped._2.reverse();
 
-        val entitiesNotCreated = allEntities.length() - acc._3;
+        val writeStart = System.nanoTime();
+        val idsByIndex = writer.mergeEntities(uniqueEntities, hash);
+        val counts = uniqueEntities.foldLeft(HashMap.<String, Integer>empty(),
+                (acc, entity) -> acc.put(entity.label(), acc.getOrElse(entity.label(), 0) + 1));
+        writer.recordSchema(counts.keySet(), HashSet.empty());
+        log.info("Pass 1: {} entit(ies) written to Neo4j in {}ms", uniqueEntities.length(),
+                (System.nanoTime() - writeStart) / 1_000_000L);
+
+        val canonicalIndex = uniqueEntities.zipWithIndex().foldLeft(CanonicalIndex.empty(),
+                (acc, pair) -> acc.put(pair._1, nodeId(idsByIndex, pair)));
+        uniqueEntities.zipWithIndex().forEach(pair -> log.info("Created node: '{}' [{}] (id={})",
+                pair._1.name(), pair._1.label(), nodeId(idsByIndex, pair)));
+
+        val entitiesNotCreated = allEntities.length() - uniqueEntities.length();
         log.info("Pass 1 complete: {} entit(ies) created, {} not created (duplicate), {} failed chunk(s)",
-                acc._3, entitiesNotCreated, failedChunks);
+                uniqueEntities.length(), entitiesNotCreated, failedChunks);
 
-        return new Pass1Result(acc._1, acc._3, acc._2, failedChunks);
+        return new Pass1Result(canonicalIndex, uniqueEntities.length(), counts, failedChunks);
     }
 
     private static void logProgress(AtomicInteger completed, int total,
@@ -113,20 +129,23 @@ public class EntityExtractionService {
         }
     }
 
-    private Tuple3<CanonicalIndex, HashMap<String, Integer>, Integer> mergeEntity(
-            Tuple3<CanonicalIndex, HashMap<String, Integer>, Integer> accumulator,
-            ExtractionRecords.ExtractedEntity entity, String hash) {
-        if (accumulator._1.lookup(entity.name(), entity.label()).isDefined()) {
-            log.debug("Skipped duplicate entity: '{}' [{}] (already in canonical index)",
+    private static Tuple2<HashSet<Tuple2<String, String>>, List<ExtractionRecords.ExtractedEntity>> dedupeEntity(
+            Tuple2<HashSet<Tuple2<String, String>>, List<ExtractionRecords.ExtractedEntity>> acc,
+            ExtractionRecords.ExtractedEntity entity) {
+        val key = Tuple.of(EntityNormalizer.normalize(entity.name()), entity.label());
+        if (acc._1.contains(key)) {
+            log.debug("Skipped duplicate entity: '{}' [{}] (duplicate in extraction results)",
                     entity.name(), entity.label());
-            return accumulator;
+            return acc;
         }
-        val nodeId = writer.mergeEntity(entity.name(), EntityNormalizer.normalize(entity.name()),
-                entity.label(), entity.description(), hash);
-        log.info("Created node: '{}' [{}] (id={})", entity.name(), entity.label(), nodeId);
-        val index = accumulator._1.put(entity, nodeId);
-        val counts = accumulator._2.put(entity.label(), accumulator._2.getOrElse(entity.label(), 0) + 1);
-        return Tuple.of(index, counts, accumulator._3 + 1);
+        return Tuple.of(acc._1.add(key), acc._2.prepend(entity));
+    }
+
+    private static long nodeId(Map<Integer, Long> idsByIndex,
+                               Tuple2<ExtractionRecords.ExtractedEntity, Integer> pair) {
+        return idsByIndex.get(pair._2)
+                .getOrElseThrow(() -> new IllegalStateException(
+                        "Neo4j returned no node id for entity '" + pair._1.name() + "'"));
     }
 
     private Prompt buildPrompt(Document chunk) {

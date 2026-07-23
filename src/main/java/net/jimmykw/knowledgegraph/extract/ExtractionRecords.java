@@ -23,4 +23,13 @@ public final class ExtractionRecords {
             String type,
             String description) {
     }
+
+    public record ResolvedRelationship(
+            long sourceId,
+            long targetId,
+            String type,
+            String description,
+            String sourceName,
+            String targetName) {
+    }
 }

@@ -18,8 +18,8 @@ Single Spring Boot 4.0 + Spring AI 2.0 app. One synchronous endpoint:
 
 Flow (wired in `GraphController`, beans declared explicitly in `AppConfig.java` — **no `@Component` scanning**):
 1. `PdfIngestionService` — SHA-256 hash, skip duplicate `:Document`, page guard, `PagePdfDocumentReader` + `TokenTextSplitter`. Chunks stay in memory (no `:Chunk` persistence).
-2. `EntityExtractionService` (Pass 1) — per-chunk parallel LLM calls, write entities via APOC MERGE, build `CanonicalIndex`.
-3. `RelationshipExtractionService` (Pass 2) — per-chunk parallel LLM calls with the canonical entity list injected into the prompt; resolve endpoints via `CanonicalIndex.lookup`, drop on `None`, write via APOC MERGE.
+2. `EntityExtractionService` (Pass 1) — per-chunk parallel LLM calls, dedupe, write entities via one batched `UNWIND` + `apoc.merge.node` query, build `CanonicalIndex` from returned ids (correlated by `idx`).
+3. `RelationshipExtractionService` (Pass 2) — per-chunk parallel LLM calls with the canonical entity list injected into the prompt; resolve endpoints via `CanonicalIndex.lookup`, drop on `None`, dedupe, write via one batched `UNWIND` + `apoc.merge.relationship` query. Schema labels/rel types are recorded once per pass via `recordSchema`, not per write.
 
 Entry point: `KnowledgeGraphApplication.java` (has `@ConfigurationPropertiesScan` so `AppProperties` is picked up).
 

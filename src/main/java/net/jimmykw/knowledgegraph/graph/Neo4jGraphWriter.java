@@ -1,7 +1,6 @@
 package net.jimmykw.knowledgegraph.graph;
 
 import java.time.Instant;
-import java.util.Map;
 import java.util.function.Function;
 
 import org.neo4j.driver.Driver;
@@ -10,7 +9,14 @@ import org.neo4j.driver.exceptions.ServiceUnavailableException;
 import org.neo4j.driver.exceptions.TransientException;
 
 import net.jimmykw.knowledgegraph.exception.Neo4jUnavailableException;
+import net.jimmykw.knowledgegraph.extract.ExtractionRecords.ExtractedEntity;
+import net.jimmykw.knowledgegraph.extract.ExtractionRecords.ResolvedRelationship;
 
+import io.vavr.collection.HashMap;
+import io.vavr.collection.HashSet;
+import io.vavr.collection.List;
+import io.vavr.collection.Map;
+import io.vavr.collection.Set;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
 import lombok.RequiredArgsConstructor;
@@ -21,11 +27,28 @@ public class Neo4jGraphWriter {
 
     static final String SCHEMA_ID = "default";
 
+    private static final String MERGE_ENTITIES_QUERY = """
+            UNWIND $entities AS e
+            CALL apoc.merge.node([e.label], {name_norm: e.nameNorm},
+                {name: e.name, label: e.label, description: e.description, source_doc: $hash}, {})
+            YIELD node
+            RETURN e.idx AS idx, id(node) AS id
+            """;
+
+    private static final String MERGE_RELATIONSHIPS_QUERY = """
+            UNWIND $rels AS r
+            MATCH (a), (b) WHERE id(a) = r.srcId AND id(b) = r.tgtId
+            CALL apoc.merge.relationship(a, r.type, {description: r.description}, {}, b, {})
+            YIELD rel
+            RETURN r.idx AS idx, id(rel) AS id
+            """;
+
     private final Driver driver;
 
     public Option<Long> findDocumentId(String hash) {
         return write(session -> {
-            val result = session.run("MATCH (d:Document {hash: $hash}) RETURN id(d) AS id", Map.of("hash", hash));
+            val result = session.run("MATCH (d:Document {hash: $hash}) RETURN id(d) AS id",
+                    java.util.Map.of("hash", hash));
             return result.hasNext() ? Option.some(result.next().get("id").asLong()) : Option.none();
         });
     }
@@ -36,59 +59,58 @@ public class Neo4jGraphWriter {
                     "MERGE (d:Document {hash: $hash}) "
                             + "SET d.filename = $filename, d.uploadedAt = $uploadedAt "
                             + "RETURN id(d) AS id",
-                    Map.of("hash", hash,
+                    java.util.Map.of("hash", hash,
                             "filename", nullSafe(filename),
                             "uploadedAt", Instant.now().toString()))
                     .single();
             return record.get("id").asLong();
         });
-        recordSchemaLabel("Document");
+        recordSchema(HashSet.of("Document"), HashSet.empty());
         return id;
     }
 
-    public long mergeEntity(String name, String nameNorm, String label, String description, String hash) {
-        val id = write(session -> {
-            val record = session.run(
-                    "CALL apoc.merge.node("
-                            + "[$label], "
-                            + "{name_norm: $nameNorm}, "
-                            + "{name: $name, label: $label, description: $description, source_doc: $hash}, "
-                            + "{}) "
-                            + "YIELD node RETURN id(node) AS id",
-                    Map.of("label", label,
-                            "nameNorm", nameNorm,
-                            "name", nullSafe(name),
-                            "description", nullSafe(description),
-                            "hash", hash))
-                    .single();
-            return record.get("id").asLong();
+    public Map<Integer, Long> mergeEntities(List<ExtractedEntity> entities, String hash) {
+        if (entities.isEmpty()) {
+            return HashMap.empty();
+        }
+        return write(session -> {
+            val params = java.util.Map.of("entities", entityParams(entities), "hash", hash);
+            return List.ofAll(session.run(MERGE_ENTITIES_QUERY, params).list())
+                    .foldLeft(HashMap.<Integer, Long>empty(),
+                            (acc, row) -> acc.put(row.get("idx").asInt(), row.get("id").asLong()));
         });
-        recordSchemaLabel(label);
-        return id;
     }
 
-    public long mergeRelationship(long srcId, long tgtId, String type, String description) {
-        val id = write(session -> {
-            val record = session.run(
-                    "MATCH (a), (b) WHERE id(a) = $srcId AND id(b) = $tgtId "
-                            + "CALL apoc.merge.relationship(a, $type, {description: $description}, {}, b, {}) YIELD rel "
-                            + "RETURN id(rel) AS id",
-                    Map.of("srcId", srcId,
-                            "tgtId", tgtId,
-                            "type", type,
-                            "description", nullSafe(description)))
-                    .single();
-            return record.get("id").asLong();
-        });
-        recordSchemaRelType(type);
-        return id;
+    public Map<Integer, Long> mergeRelationships(List<ResolvedRelationship> relationships) {
+        if (relationships.isEmpty()) {
+            return HashMap.empty();
+        }
+        return write(session -> List.ofAll(session.run(MERGE_RELATIONSHIPS_QUERY,
+                        java.util.Map.of("rels", relationshipParams(relationships))).list())
+                .foldLeft(HashMap.<Integer, Long>empty(),
+                        (acc, row) -> acc.put(row.get("idx").asInt(), row.get("id").asLong())));
+    }
+
+    public void recordSchema(Set<String> labels, Set<String> relTypes) {
+        if (labels.isEmpty() && relTypes.isEmpty()) {
+            return;
+        }
+        write(session -> session.run(
+                "MERGE (s:Schema {id: $id}) "
+                        + "SET s.labels = apoc.coll.union(coalesce(s.labels, []), $labels), "
+                        + "    s.relTypes = apoc.coll.union(coalesce(s.relTypes, []), $relTypes), "
+                        + "    s.updatedAt = $updatedAt",
+                java.util.Map.of("id", SCHEMA_ID,
+                        "labels", labels.toJavaList(),
+                        "relTypes", relTypes.toJavaList(),
+                        "updatedAt", Instant.now().toString())));
     }
 
     public Option<SchemaSnapshot> readSchema() {
         return write(session -> {
             val result = session.run(
                     "MATCH (s:Schema {id: $id}) RETURN s.labels AS labels, s.relTypes AS relTypes",
-                    Map.of("id", SCHEMA_ID));
+                    java.util.Map.of("id", SCHEMA_ID));
             if (!result.hasNext()) {
                 return Option.<SchemaSnapshot>none();
             }
@@ -103,24 +125,37 @@ public class Neo4jGraphWriter {
         });
     }
 
-    private void recordSchemaLabel(String label) {
-        write(session -> session.run(
-                "MERGE (s:Schema {id: $id}) "
-                        + "SET s.labels = apoc.coll.union(coalesce(s.labels, []), [$label]), "
-                        + "    s.updatedAt = $updatedAt",
-                Map.of("id", SCHEMA_ID,
-                        "label", label,
-                        "updatedAt", Instant.now().toString())));
+    private static java.util.List<java.util.Map<String, Object>> entityParams(List<ExtractedEntity> entities) {
+        return entities.zipWithIndex()
+                .map(pair -> entityParam(pair._1, pair._2))
+                .toJavaList();
     }
 
-    private void recordSchemaRelType(String type) {
-        write(session -> session.run(
-                "MERGE (s:Schema {id: $id}) "
-                        + "SET s.relTypes = apoc.coll.union(coalesce(s.relTypes, []), [$type]), "
-                        + "    s.updatedAt = $updatedAt",
-                Map.of("id", SCHEMA_ID,
-                        "type", type,
-                        "updatedAt", Instant.now().toString())));
+    private static java.util.Map<String, Object> entityParam(ExtractedEntity entity, int idx) {
+        return HashMap.<String, Object>of(
+                        "idx", idx,
+                        "name", nullSafe(entity.name()),
+                        "nameNorm", EntityNormalizer.normalize(entity.name()),
+                        "label", entity.label(),
+                        "description", nullSafe(entity.description()))
+                .toJavaMap();
+    }
+
+    private static java.util.List<java.util.Map<String, Object>> relationshipParams(
+            List<ResolvedRelationship> relationships) {
+        return relationships.zipWithIndex()
+                .map(pair -> relationshipParam(pair._1, pair._2))
+                .toJavaList();
+    }
+
+    private static java.util.Map<String, Object> relationshipParam(ResolvedRelationship rel, int idx) {
+        return HashMap.<String, Object>of(
+                        "idx", idx,
+                        "srcId", rel.sourceId(),
+                        "tgtId", rel.targetId(),
+                        "type", rel.type(),
+                        "description", nullSafe(rel.description()))
+                .toJavaMap();
     }
 
     private <T> T write(Function<Session, T> work) {

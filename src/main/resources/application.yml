@@ -1,7 +1,7 @@
 app:
   max-pages: 100
-  chunk-tokens: 1000
-  pool-size: 4
+  chunk-tokens: 3000
+  pool-size: 8
   chat:
     result-row-limit: 50
     max-prompt-length: 2000

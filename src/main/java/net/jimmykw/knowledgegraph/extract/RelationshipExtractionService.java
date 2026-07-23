@@ -17,10 +17,12 @@ import net.jimmykw.knowledgegraph.graph.CanonicalIndex;
 import net.jimmykw.knowledgegraph.graph.Neo4jGraphWriter;
 
 import io.vavr.Tuple;
+import io.vavr.Tuple2;
 import io.vavr.Tuple3;
 import io.vavr.collection.HashMap;
 import io.vavr.collection.HashSet;
 import io.vavr.collection.List;
+import io.vavr.collection.Map;
 import io.vavr.control.Try;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
@@ -100,16 +102,28 @@ public class RelationshipExtractionService {
 
         val allRelationships = relationshipPartition._1;
 
-        val acc = allRelationships.foldLeft(
-                Tuple.of(HashMap.<String, Integer>empty(),
-                        HashSet.<Tuple3<Long, Long, String>>empty(),
-                        0),
-                (accumulator, rel) -> mergeRelationship(accumulator, rel, canonicalIndex));
+        val resolved = allRelationships.foldLeft(
+                Tuple.of(HashSet.<Tuple3<Long, Long, String>>empty(),
+                        List.<ExtractionRecords.ResolvedRelationship>empty()),
+                (acc, rel) -> resolveRelationship(acc, rel, canonicalIndex));
+        val uniqueRelationships = resolved._2.reverse();
 
-        val notCreated = allRelationships.length() - acc._3;
+        val writeStart = System.nanoTime();
+        val idsByIndex = writer.mergeRelationships(uniqueRelationships);
+        val counts = uniqueRelationships.foldLeft(HashMap.<String, Integer>empty(),
+                (acc, rel) -> acc.put(rel.type(), acc.getOrElse(rel.type(), 0) + 1));
+        writer.recordSchema(HashSet.empty(), counts.keySet());
+        log.info("Pass 2: {} relationship(s) written to Neo4j in {}ms", uniqueRelationships.length(),
+                (System.nanoTime() - writeStart) / 1_000_000L);
+
+        uniqueRelationships.zipWithIndex().forEach(pair ->
+                log.info("Created relationship: {} -[{}]-> {} (id={})", pair._1.sourceName(), pair._1.type(),
+                        pair._1.targetName(), relId(idsByIndex, pair)));
+
+        val notCreated = allRelationships.length() - uniqueRelationships.length();
         log.info("Pass 2 complete: {} relationship(s) created, {} not created (dropped/duplicate), "
-                + "{} failed chunk(s)", acc._3, notCreated, failedChunks);
-        return new Pass2Result(acc._3, acc._1, failedChunks);
+                + "{} failed chunk(s)", uniqueRelationships.length(), notCreated, failedChunks);
+        return new Pass2Result(uniqueRelationships.length(), counts, failedChunks);
     }
 
     private static void logProgress(AtomicInteger completed, int total,
@@ -125,28 +139,40 @@ public class RelationshipExtractionService {
         }
     }
 
-    private Tuple3<HashMap<String, Integer>, HashSet<Tuple3<Long, Long, String>>, Integer> mergeRelationship(
-            Tuple3<HashMap<String, Integer>, HashSet<Tuple3<Long, Long, String>>, Integer> accumulator,
+    private static Tuple2<HashSet<Tuple3<Long, Long, String>>, List<ExtractionRecords.ResolvedRelationship>> resolveRelationship(
+            Tuple2<HashSet<Tuple3<Long, Long, String>>, List<ExtractionRecords.ResolvedRelationship>> acc,
             ExtractionRecords.ExtractedRelationship rel, CanonicalIndex canonicalIndex) {
-        val source = canonicalIndex.lookup(rel.sourceName(), rel.sourceLabel());
-        val target = canonicalIndex.lookup(rel.targetName(), rel.targetLabel());
-        if (source.isEmpty() || target.isEmpty()) {
-            log.warn("Pass 2: dropped relationship {}:{} -[{}]-> {}:{} (endpoint not in canonical index)",
-                    rel.sourceName(), rel.sourceLabel(), rel.type(), rel.targetName(), rel.targetLabel());
-            return accumulator;
-        }
-        val key = Tuple.of(source.get(), target.get(), rel.type());
-        if (accumulator._2.contains(key)) {
+        return canonicalIndex.lookup(rel.sourceName(), rel.sourceLabel())
+                .flatMap(sourceId -> canonicalIndex.lookup(rel.targetName(), rel.targetLabel())
+                        .map(targetId -> Tuple.of(sourceId, targetId)))
+                .map(endpoints -> addResolved(acc, rel, endpoints))
+                .getOrElse(() -> {
+                    log.warn("Pass 2: dropped relationship {}:{} -[{}]-> {}:{} (endpoint not in canonical index)",
+                            rel.sourceName(), rel.sourceLabel(), rel.type(), rel.targetName(), rel.targetLabel());
+                    return acc;
+                });
+    }
+
+    private static Tuple2<HashSet<Tuple3<Long, Long, String>>, List<ExtractionRecords.ResolvedRelationship>> addResolved(
+            Tuple2<HashSet<Tuple3<Long, Long, String>>, List<ExtractionRecords.ResolvedRelationship>> acc,
+            ExtractionRecords.ExtractedRelationship rel, Tuple2<Long, Long> endpoints) {
+        val key = Tuple.of(endpoints._1, endpoints._2, rel.type());
+        if (acc._1.contains(key)) {
             log.debug("Skipped duplicate relationship: {} -[{}]-> {} (already created)",
                     rel.sourceName(), rel.type(), rel.targetName());
-            return accumulator;
+            return acc;
         }
-        val relId = writer.mergeRelationship(source.get(), target.get(), rel.type(), rel.description());
-        log.info("Created relationship: {} -[{}]-> {} (id={})",
-                rel.sourceName(), rel.type(), rel.targetName(), relId);
-        val counts = accumulator._1.put(rel.type(), accumulator._1.getOrElse(rel.type(), 0) + 1);
-        val seen = accumulator._2.add(key);
-        return Tuple.of(counts, seen, accumulator._3 + 1);
+        val resolved = new ExtractionRecords.ResolvedRelationship(endpoints._1, endpoints._2, rel.type(),
+                rel.description(), rel.sourceName(), rel.targetName());
+        return Tuple.of(acc._1.add(key), acc._2.prepend(resolved));
+    }
+
+    private static long relId(Map<Integer, Long> idsByIndex,
+                              Tuple2<ExtractionRecords.ResolvedRelationship, Integer> pair) {
+        return idsByIndex.get(pair._2)
+                .getOrElseThrow(() -> new IllegalStateException(
+                        "Neo4j returned no relationship id for '" + pair._1.sourceName() + " -[" + pair._1.type()
+                                + "]-> " + pair._1.targetName() + "'"));
     }
 
     private Prompt buildPrompt(Document chunk, String canonicalList) {
