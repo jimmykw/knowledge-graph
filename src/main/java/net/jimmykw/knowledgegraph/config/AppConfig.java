@@ -61,9 +61,8 @@ public class AppConfig {
     }
 
     @Bean
-    GraphTools graphTools(SchemaService schemaService, CypherExecutor cypherExecutor, Driver driver,
-                            AppProperties appProperties) {
-        return new GraphTools(schemaService, cypherExecutor, driver, appProperties);
+    GraphTools graphTools(SchemaService schemaService, CypherExecutor cypherExecutor) {
+        return new GraphTools(schemaService, cypherExecutor);
     }
 
     @Bean

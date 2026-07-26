@@ -1,17 +1,14 @@
 package net.jimmykw.knowledgegraph.chat;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import net.jimmykw.knowledgegraph.config.AppProperties;
+import net.jimmykw.knowledgegraph.exception.InvalidPromptException;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
 import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.model.tool.ToolExecutionEligibilityChecker;
-
-import net.jimmykw.knowledgegraph.config.AppProperties;
-import net.jimmykw.knowledgegraph.exception.InvalidPromptException;
-
-import io.vavr.control.Try;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import lombok.val;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -30,10 +27,7 @@ public class ChatService {
                 .toolExecutionEligibilityChecker(cappedChecker(trace, maxRounds))
                 .build();
         val client = chatChatClient.mutate().defaultAdvisors(advisor).build();
-        GraphTools.setTrace(trace);
-        val answer = Try.of(() -> client.prompt(prompt).call().content())
-                .andFinally(GraphTools::clearTrace)
-                .get();
+        val answer = client.prompt(prompt).call().content();
         log.info("Chat: completed with {} tool round(s){}", trace.roundCount(),
                 trace.maxRoundsExceeded() ? " (max rounds exceeded)" : "");
         return buildResponse(answer, trace);
@@ -68,7 +62,7 @@ public class ChatService {
 
     private static ToolExecutionEligibilityChecker cappedChecker(ToolTrace trace, int maxRounds) {
         return response -> {
-            if (response == null || !response.hasToolCalls()) {
+            if (!response.hasToolCalls()) {
                 return false;
             }
             if (trace.roundCount() >= maxRounds) {

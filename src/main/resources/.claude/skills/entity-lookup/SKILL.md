@@ -4,7 +4,9 @@ description: Use when the user asks about a specific entity by name — "tell me
   "what is X", "who is X", "find X", "find information on X", "what does the graph say
   about X". Teaches case-insensitive matching against the name_norm property
   (trim + lowercase) with a CONTAINS fuzzy fallback, and the answer shape: canonical
-  name, label, description, then related entities.
+  name, label, description, then related entities. Do NOT use for verb-directed
+  questions ("what did X invent", "who does X manage", "what does X create") — those
+  belong to the neighborhood-exploration skill.
 ---
 
 # Entity Lookup
@@ -37,7 +39,7 @@ Entity nodes have these properties:
 
 ```cypher
 MATCH (e)
-WHERE e.name_norm = toLower($name)
+WHERE e.name_norm = toLower($name) AND e.name IS NOT NULL
 RETURN e.name AS name, e.label AS label, e.description AS description
 LIMIT 1
 ```
@@ -50,7 +52,7 @@ Broaden to a substring match on `name_norm`:
 
 ```cypher
 MATCH (e)
-WHERE e.name_norm CONTAINS toLower($name)
+WHERE e.name_norm CONTAINS toLower($name) AND e.name IS NOT NULL
 RETURN e.name AS name, e.label AS label, e.description AS description
 ORDER BY size(e.name_norm)
 LIMIT 5

@@ -3,7 +3,7 @@ app:
   chunk-tokens: 3000
   pool-size: 8
   chat:
-    result-row-limit: 50
+    result-row-limit: 200
     max-prompt-length: 2000
     max-tool-call-rounds: 10
     query-timeout-ms: 10000
@@ -19,6 +19,8 @@ spring:
     openai:
       base-url: https://opencode.ai/zen/go/v1
       api-key: ${OPENAI_API_KEY:sk-sfPo9bafX4pOKwIu1hVQQz9w0FDrxXDdhEjIeRTsMvtF7DcR2qd3XhwsxHxUqSGe}
+      timeout: 240s
+      max-retries: 5
       chat:
         model: glm-5.2
         temperature: 0.2
