@@ -7,12 +7,19 @@ app:
     max-prompt-length: 2000
     max-tool-call-rounds: 10
     query-timeout-ms: 10000
+    history-window: 20
 
 spring:
   servlet:
     multipart:
       max-file-size: 10MB
       max-request-size: 10MB
+  datasource:
+    url: jdbc:h2:file:./data/chatdb
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always
   ai:
     model:
       chat: openai

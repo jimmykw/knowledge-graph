@@ -22,9 +22,11 @@ dependencies {
     implementation(platform("org.springaicommunity:spring-ai-agent-utils-bom:0.10.0"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-jdbc")
     implementation("org.springframework.ai:spring-ai-starter-model-openai")
     implementation("org.springframework.ai:spring-ai-pdf-document-reader")
     implementation("org.neo4j.driver:neo4j-java-driver")
+    runtimeOnly("com.h2database:h2")
     implementation("io.vavr:vavr:1.0.1")
     implementation("org.springaicommunity:spring-ai-agent-utils")
 

@@ -5,7 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "app")
 public record AppProperties(int maxPages, int chunkTokens, int poolSize, Chat chat) {
 
-    public record Chat(int resultRowLimit, int maxPromptLength, int maxToolCallRounds, long queryTimeoutMs) {
+    public record Chat(int resultRowLimit, int maxPromptLength, int maxToolCallRounds, long queryTimeoutMs,
+                       int historyWindow) {
         public Chat {
             if (resultRowLimit <= 0) {
                 resultRowLimit = 50;
@@ -18,6 +19,9 @@ public record AppProperties(int maxPages, int chunkTokens, int poolSize, Chat ch
             }
             if (queryTimeoutMs <= 0) {
                 queryTimeoutMs = 10000;
+            }
+            if (historyWindow <= 0) {
+                historyWindow = 20;
             }
         }
     }
@@ -33,7 +37,7 @@ public record AppProperties(int maxPages, int chunkTokens, int poolSize, Chat ch
             poolSize = 4;
         }
         if (chat == null) {
-            chat = new Chat(0, 0, 0, 0L);
+            chat = new Chat(0, 0, 0, 0L, 0);
         }
     }
 }

@@ -2,6 +2,7 @@ package net.jimmykw.knowledgegraph.config;
 
 import org.neo4j.driver.Driver;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -66,7 +67,7 @@ public class AppConfig {
     }
 
     @Bean
-    ChatService chatService(ChatClient chatChatClient, AppProperties appProperties) {
-        return new ChatService(chatChatClient, appProperties);
+    ChatService chatService(ChatClient chatChatClient, AppProperties appProperties, ChatMemory chatMemory) {
+        return new ChatService(chatChatClient, appProperties, chatMemory);
     }
 }

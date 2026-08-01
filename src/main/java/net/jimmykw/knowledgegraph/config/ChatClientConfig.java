@@ -3,6 +3,8 @@ package net.jimmykw.knowledgegraph.config;
 import org.springaicommunity.agent.tools.SkillsTool;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.context.annotation.Bean;
@@ -39,10 +41,11 @@ public class ChatClientConfig {
     }
 
     @Bean
-    ChatClient chatChatClient(ChatClient.Builder builder, ToolCallback skillsTool, GraphTools graphTools) {
+    ChatClient chatChatClient(ChatClient.Builder builder, ToolCallback skillsTool, GraphTools graphTools, ChatMemory chatMemory) {
         return builder
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultTools(skillsTool, graphTools)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .build();
     }
 
