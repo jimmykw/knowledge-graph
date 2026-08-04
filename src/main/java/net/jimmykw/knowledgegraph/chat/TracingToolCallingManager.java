@@ -91,12 +91,14 @@ public class TracingToolCallingManager implements ToolCallingManager {
         } else if (SKILL_TOOL.equals(toolCall.name())) {
             recordSkill(arguments, response);
         } else {
+            log.info("Tool call: {}", toolCall.name());
             trace.recordToolCall(toolCall.name(), arguments, response, null);
         }
     }
 
     private void recordSkill(String arguments, String response) {
         val skillName = extractCommand(arguments);
+        log.info("Tool call: Skill \u2014 {}", skillName != null ? skillName : "(unknown)");
         if (skillName != null) {
             trace.recordSkill(skillName);
         }
@@ -106,6 +108,10 @@ public class TracingToolCallingManager implements ToolCallingManager {
     private void recordRunReadCypher(String arguments, String response) {
         val cypher = extractCypher(arguments);
         val parsed = parseReadCypherResponse(response);
+        val summary = parsed.error() != null
+                ? " [error: " + truncateForLog(parsed.error(), 80) + "]"
+                : " \u2192 " + parsed.count() + " row(s)";
+        log.info("Tool call: runReadCypher \u2014 {}{}", truncateForLog(cypher, 80), summary);
         if (parsed.error() != null) {
             trace.recordToolCall(RUN_READ_CYPHER, arguments, response, parsed.error());
             trace.setError(parsed.error());
@@ -169,5 +175,12 @@ public class TracingToolCallingManager implements ToolCallingManager {
     }
 
     private record ReadCypherResult(List<Map<String, Object>> rows, int count, boolean truncated, String error) {
+    }
+
+    private static String truncateForLog(String value, int max) {
+        if (value == null) {
+            return "(none)";
+        }
+        return value.length() <= max ? value : value.substring(0, max) + "\u2026";
     }
 }

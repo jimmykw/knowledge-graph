@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Knowledge Graph Chat</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/@picocss/pico@2.0.6/css/pico.min.css"
+        integrity="sha384-7P0NVe9LPDbUCAF+fH2R8Egwz1uqNH83Ns/bfJY0fN2XCDBMUI2S9gGzIOIRBKsA"
+        crossorigin="anonymous">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css"
+        integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH"
+        crossorigin="anonymous">
+  <link rel="stylesheet" href="/css/app.css">
+  <script defer
+          src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"
+          integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi"
+          crossorigin="anonymous"></script>
+  <script defer
+          src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"
+          integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a"
+          crossorigin="anonymous"></script>
+  <script defer
+          src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"
+          integrity="sha384-F/bZzf7p3Joyp5psL90p/p89AZJsndkSoGwRpXcZhleCWhd8SnRuoYo4d0yirjJp"
+          crossorigin="anonymous"></script>
+  <script defer src="/js/trace.js"></script>
+  <script defer src="/js/app.js"></script>
+  <script defer
+          src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"
+          integrity="sha384-l8f0VcPi/M1iHPv8egOnY/15TDwqgbOR1anMIJWvU6nLRgZVLTLSaNqi/TOoT5Fh"
+          crossorigin="anonymous"></script>
+</head>
+<body>
+  <div x-data="chatApp()" x-init="init()" x-cloak class="kg-app">
+    <aside class="kg-sidebar">
+      <button type="button" class="kg-new" @click="startNewChat()">+ New chat</button>
+      <ul class="kg-conv-list">
+        <template x-for="conv in conversations" :key="conv.id">
+          <li class="kg-conv" :class="{ 'kg-active': conv.id === activeId }">
+            <button type="button" class="kg-conv-btn" @click="selectConversation(conv.id)" :title="conv.title">
+              <span x-text="conv.title"></span>
+            </button>
+            <button type="button" class="kg-trash" @click="deleteConversation(conv.id)"
+                    title="Delete conversation" aria-label="Delete conversation">🗑</button>
+          </li>
+        </template>
+      </ul>
+      <p x-show="conversations.length === 0" class="kg-sidebar-empty">No conversations yet.</p>
+    </aside>
+
+    <main class="kg-chat">
+      <div class="kg-dropzone"
+           :class="{ 'kg-dragover': dragOver, 'kg-dropzone-error': uploadError }"
+           @dragover.prevent="dragOver = true"
+           @dragleave.prevent="dragOver = false"
+           @drop.prevent="handleDrop($event)"
+           @click="if (!uploading) $refs.fileInput.click()">
+        <input type="file" accept="application/pdf,.pdf" x-ref="fileInput"
+               class="kg-file-input" @change="handleFileInput($event)">
+        <span class="kg-dropzone-label">
+          <template x-if="uploading"><span>Uploading…</span></template>
+          <template x-if="!uploading">
+            <span x-text="uploadError || 'Drop a PDF here or click to upload'"></span>
+          </template>
+        </span>
+      </div>
+
+      <div class="kg-thread" x-ref="thread">
+        <template x-if="messages.length === 0">
+          <div class="kg-hint" x-text="hintMessage()"></div>
+        </template>
+        <template x-for="message in messages" :key="message.key">
+          <div :class="messageClass(message)">
+            <template x-if="message.role === 'user'">
+              <div class="kg-bubble kg-user" x-text="message.content"></div>
+            </template>
+            <template x-if="message.role === 'assistant' && message.pending">
+              <div class="kg-bubble kg-assistant kg-pending">
+                <span x-text="'Working… ' + elapsedFor(message) + 's'"></span>
+              </div>
+            </template>
+            <template x-if="message.role === 'assistant' && !message.pending">
+              <div class="kg-bubble kg-assistant">
+                <div class="kg-md" x-html="renderMarkdown(message.content)"></div>
+                <template x-if="message.trace">
+                  <div x-data="tracePanel(message.trace)" class="kg-trace">
+                    <button type="button" class="kg-trace-toggle" @click="toggle()">
+                      <span x-text="summary()"></span>
+                    </button>
+                    <template x-if="open">
+                      <div class="kg-trace-body">
+                        <template x-if="trace.skillsExecuted && trace.skillsExecuted.length">
+                          <div class="kg-trace-section">
+                            <h6>Skills executed</h6>
+                            <ul class="kg-skills">
+                              <template x-for="skill in trace.skillsExecuted" :key="skill">
+                                <li x-text="skill"></li>
+                              </template>
+                            </ul>
+                          </div>
+                        </template>
+                        <template x-if="trace.cypherQueries && trace.cypherQueries.length">
+                          <div class="kg-trace-section">
+                            <h6>Cypher queries
+                              <span class="kg-count" x-text="'(' + trace.cypherQueries.length + ')'"></span>
+                            </h6>
+                            <template x-for="(query, qi) in trace.cypherQueries" :key="qi">
+                              <div class="kg-query">
+                                <pre class="hljs language-cypher"
+                                    x-init="$nextTick(() => highlightQuery($el, query))"></pre>
+                                <button type="button" class="kg-copy"
+                                        @click="copyQuery(query, $event)">Copy</button>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
+                        <template x-if="trace.results && trace.results.length">
+                          <div class="kg-trace-section">
+                            <h6>Result rows
+                              <span class="kg-count"
+                                    x-text="'(' + cappedRows().length + ' of ' + trace.rowCount + (trace.truncated ? ' · server-truncated' : '') + ')'"></span>
+                            </h6>
+                            <div class="kg-table-wrap">
+                              <table>
+                                <thead>
+                                  <tr>
+                                    <template x-for="col in columnList()" :key="col">
+                                      <th x-text="col"></th>
+                                    </template>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <template x-for="(row, ri) in cappedRows()" :key="ri">
+                                    <tr>
+                                      <template x-for="col in columnList()" :key="col">
+                                        <td x-html="renderCell(row[col])"></td>
+                                      </template>
+                                    </tr>
+                                  </template>
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </template>
+                        <template x-if="trace.error">
+                          <div class="kg-trace-section kg-trace-error">
+                            <h6>Tool error</h6>
+                            <pre x-text="trace.error"></pre>
+                          </div>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </template>
+            <template x-if="message.role === 'system'">
+              <div class="kg-system" :class="'kg-' + (message.type || 'info')">
+                <span class="kg-icon" x-text="systemIcon(message.type)"></span>
+                <span x-text="message.content"></span>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <form class="kg-input-row" @submit.prevent="sendMessage()">
+        <textarea x-model="draft" x-ref="input" class="kg-input" rows="1"
+                  placeholder="Ask about your knowledge graph…"
+                  @keydown.enter="onEnter($event)" @input="autoGrow($event)"
+                  :disabled="loading"></textarea>
+        <button type="submit" class="kg-send"
+                :disabled="loading || draft.trim() === ''">Send</button>
+      </form>
+    </main>
+  </div>
+
+  <noscript>
+    <p style="text-align:center;padding:2rem">This page requires JavaScript.</p>
+  </noscript>
+</body>
+</html>

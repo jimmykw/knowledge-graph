@@ -24,9 +24,10 @@ spring:
     model:
       chat: openai
     openai:
-      base-url: https://opencode.ai/zen/go/v1
-      api-key: ${OPENAI_API_KEY:sk-sfPo9bafX4pOKwIu1hVQQz9w0FDrxXDdhEjIeRTsMvtF7DcR2qd3XhwsxHxUqSGe}
-      timeout: 240s
+#      base-url: https://opencode.ai/zen/go/v1
+      base-url: https://openrouter.ai/api/v1
+      api-key: ${OPENAI_API_KEY}
+      timeout: 600s
       max-retries: 5
       chat:
         model: glm-5.2

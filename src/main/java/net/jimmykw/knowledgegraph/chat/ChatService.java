@@ -40,6 +40,9 @@ public class ChatService {
         val answer = client.prompt(prompt)
                 .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, resolvedConversationId))
                 .call().content();
+        if (answer == null || answer.isBlank()) {
+            log.warn("Chat: model returned blank answer after {} tool round(s)", trace.roundCount());
+        }
         log.info("Chat: completed with {} tool round(s){}", trace.roundCount(),
                 trace.maxRoundsExceeded() ? " (max rounds exceeded)" : "");
         return buildResponse(answer, trace, resolvedConversationId);
