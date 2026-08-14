@@ -51,7 +51,7 @@ public class EntityExtractionService {
                                    AppProperties appProperties) {
         this.prompter = prompter;
         this.writer = writer;
-        this.executor = Executors.newFixedThreadPool(appProperties.poolSize());
+        this.executor = Executors.newFixedThreadPool(appProperties.models().extract().poolSize());
     }
 
     public Pass1Result extract(List<Document> chunks, String hash) {

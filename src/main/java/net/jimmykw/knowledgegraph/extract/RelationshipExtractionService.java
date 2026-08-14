@@ -53,7 +53,7 @@ public class RelationshipExtractionService {
                                          AppProperties appProperties) {
         this.prompter = prompter;
         this.writer = writer;
-        this.executor = Executors.newFixedThreadPool(appProperties.poolSize());
+        this.executor = Executors.newFixedThreadPool(appProperties.models().extract().poolSize());
     }
 
     public Pass2Result extract(List<Document> chunks, CanonicalIndex canonicalIndex, String hash) {

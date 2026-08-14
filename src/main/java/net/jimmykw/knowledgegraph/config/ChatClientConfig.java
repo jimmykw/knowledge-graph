@@ -6,6 +6,8 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.converter.BeanOutputConverter;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,6 +15,8 @@ import org.springframework.core.io.ClassPathResource;
 
 import net.jimmykw.knowledgegraph.chat.GraphTools;
 import net.jimmykw.knowledgegraph.extract.ExtractionRecords.ExtractionResult;
+
+import lombok.val;
 
 @Configuration
 public class ChatClientConfig {
@@ -36,17 +40,39 @@ public class ChatClientConfig {
             """;
 
     @Bean
-    ChatClient chatClient(ChatClient.Builder builder) {
-        return builder.build();
+    OpenAiChatModel extractChatModel(AppProperties properties) {
+        val ex = properties.models().extract();
+        return model(OpenAiChatOptions.builder()
+                .baseUrl(ex.baseUrl()).apiKey(ex.apiKey()).model(ex.model())
+                .temperature(ex.temperature()).timeout(ex.timeout()).maxRetries(ex.maxRetries())
+                .build());
     }
 
     @Bean
-    ChatClient chatChatClient(ChatClient.Builder builder, ToolCallback skillsTool, GraphTools graphTools, ChatMemory chatMemory) {
-        return builder
+    OpenAiChatModel chatChatModel(AppProperties properties) {
+        val ch = properties.models().chat();
+        return model(OpenAiChatOptions.builder()
+                .baseUrl(ch.baseUrl()).apiKey(ch.apiKey()).model(ch.model())
+                .temperature(ch.temperature()).timeout(ch.timeout()).maxRetries(ch.maxRetries())
+                .build());
+    }
+
+    @Bean
+    ChatClient chatClient(OpenAiChatModel extractChatModel) {
+        return ChatClient.builder(extractChatModel).build();
+    }
+
+    @Bean
+    ChatClient chatChatClient(OpenAiChatModel chatChatModel, ToolCallback skillsTool, GraphTools graphTools, ChatMemory chatMemory) {
+        return ChatClient.builder(chatChatModel)
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultTools(skillsTool, graphTools)
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .build();
+    }
+
+    private static OpenAiChatModel model(OpenAiChatOptions options) {
+        return OpenAiChatModel.builder().options(options).build();
     }
 
     @Bean
