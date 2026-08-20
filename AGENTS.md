@@ -6,7 +6,8 @@ Compact guide for OpenCode sessions working in this repo. Read this before editi
 
 - **Build/compile:** `./gradlew compileJava` (quiet: `./gradlew compileJava --quiet`). Java 21 toolchain, Gradle Kotlin DSL.
 - **Run the app:** `./gradlew bootRun`. Requires a local Neo4j with the **APOC** plugin installed and reachable at `bolt://localhost:7687`; an APOC probe at startup throws `Neo4jUnavailableException` (→ 503) if APOC is missing.
-- **No test, lint, or typecheck tasks exist.** There is no `src/test` directory. The only verification is `./gradlew compileJava`.
+- **Tests:** `src/test` exists. Hermetic unit tests run under `./gradlew test`; the real-model chat eval is guarded by `@EnabledIfSystemProperty("chat.eval")` and is skipped unless that property is set. Use `./gradlew compileJava` for the fastest main-only sanity check and `./gradlew compileTestJava` to compile tests.
+- **Chat eval (on-demand):** `./gradlew chatEval` runs the real-model eval against the loaded HistoryOfIBM graph. Requires Neo4j + APOC reachable at `bolt://localhost:7687`. `OPENAI_API_KEY` is optional — application.yml inlines a default key (also feeding `spring.ai.openai.api-key`, without which Spring AI's auto-configured OpenAI beans hard-fail context startup). Non-deterministic; treat as a quality gate, not a CI gate.
 - **No CI workflows** (`.github` absent). Branch: `user/jimmykw/dev`.
 - The LLM endpoint and key are set in `src/main/resources/application.yml` via `OPENAI_API_KEY` / `NEO4J_PASSWORD` env vars (defaults are inlined). Model is `glm-5.2` through an OpenAI-compatible base URL.
 

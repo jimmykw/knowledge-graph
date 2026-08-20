@@ -1,0 +1,7 @@
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/chatdb-eval
+    driver-class-name: org.h2.Driver
+  sql:
+    init:
+      mode: always

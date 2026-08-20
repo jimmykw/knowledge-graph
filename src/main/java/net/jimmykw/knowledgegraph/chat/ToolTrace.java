@@ -47,9 +47,7 @@ public class ToolTrace {
     }
 
     public void setError(String error) {
-        if (this.error == null) {
-            this.error = error;
-        }
+        this.error = error;
     }
 
     public void incrementRoundCount() {

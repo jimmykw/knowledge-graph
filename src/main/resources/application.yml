@@ -24,13 +24,27 @@ app:
       # pool-size: 2
     chat:
       base-url: https://opencode.ai/zen/go/v1
+#      base-url: https://opencode.ai/zen/v1
       api-key: ${OPENAI_API_KEY}
+#      model: muse-spark-1.2-contributor-free
+#      model: mimo-v2.5-free
       model: glm-5.2
+#      model: qwen3.8-max
+#      model: kimi-k3
+#      base-url: http://localhost:11434/v1
+#      api-key: ${EXTRACT_API_KEY:ollama}
+#      model: qwen3.8:27b-mlx
       temperature: 0.2
       timeout: 120s
       max-retries: 5
 
 spring:
+  ai:
+    openai:
+      # Feeds Spring AI's auto-configured OpenAI beans (audio/image/moderation), which
+      # hard-fail context startup when no credential is resolvable. The app's own chat and
+      # extraction models are configured under app.models above.
+      api-key: ${OPENAI_API_KEY}
   servlet:
     multipart:
       max-file-size: 10MB

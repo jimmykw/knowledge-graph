@@ -119,6 +119,7 @@ public class TracingToolCallingManager implements ToolCallingManager {
             return;
         }
         trace.recordToolCall(RUN_READ_CYPHER, arguments, response, null);
+        trace.setError(null);
         trace.recordRunReadCypher(cypher, parsed.rows(), parsed.count(), parsed.truncated());
     }
 

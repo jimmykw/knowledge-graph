@@ -23,6 +23,10 @@ public class GraphTools {
             "\\b(CREATE|MERGE|SET\\b|DELETE|REMOVE|DROP|CALL\\s+apoc\\.(merge|create))\\b",
             Pattern.CASE_INSENSITIVE);
 
+    static Pattern writePattern() {
+        return WRITE_PATTERN;
+    }
+
     private final SchemaService schemaService;
     private final CypherExecutor cypherExecutor;
 

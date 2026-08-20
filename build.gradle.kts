@@ -41,3 +41,14 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+tasks.register<org.gradle.api.tasks.testing.Test>("chatEval") {
+    group = "verification"
+    systemProperty("chat.eval", "true")
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = true
+    }
+}
