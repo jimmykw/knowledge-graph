@@ -9,6 +9,7 @@ public class ToolTrace {
     private final List<ToolCallEntry> toolCalls = new ArrayList<>();
     private final List<String> skillsExecuted = new ArrayList<>();
     private final List<String> cypherQueries = new ArrayList<>();
+    private final List<QueryEvidence> evidence = new ArrayList<>();
 
     private String lastCypher;
     private List<Map<String, Object>> lastRows = List.of();
@@ -30,10 +31,12 @@ public class ToolTrace {
         skillsExecuted.add(skillName);
     }
 
-    public void recordRunReadCypher(String cypher, List<Map<String, Object>> rows, int count, boolean truncated) {
+    public void recordRunReadCypher(String cypher, List<Map<String, Object>> rows, int count, boolean truncated,
+            String error) {
         if (cypher != null && !cypher.isBlank()) {
             cypherQueries.add(cypher);
         }
+        evidence.add(new QueryEvidence(cypher, List.copyOf(rows), count, truncated, error));
         lastCypher = cypher;
         lastRows = rows;
         lastCount = count;
@@ -68,6 +71,10 @@ public class ToolTrace {
 
     public List<String> cypherQueries() {
         return List.copyOf(cypherQueries);
+    }
+
+    public List<QueryEvidence> evidence() {
+        return List.copyOf(evidence);
     }
 
     public String lastCypher() {

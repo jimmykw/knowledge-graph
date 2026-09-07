@@ -1,14 +1,12 @@
 package net.jimmykw.knowledgegraph.chat.eval;
 
-import java.util.List;
-
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.converter.BeanOutputConverter;
-
-import net.jimmykw.knowledgegraph.chat.ChatResponse;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.evaluation.EvaluationRequest;
 
 import io.vavr.control.Try;
 import lombok.RequiredArgsConstructor;
@@ -36,11 +34,11 @@ public class EvalJudge {
     private final ChatClient evalJudgeClient;
     private final BeanOutputConverter<JudgeResult> converter;
 
-    public JudgeResult score(String question, List<String> expectedFacts, ChatResponse response) {
+    public JudgeResult score(EvaluationRequest request) {
         val format = converter.getFormat();
         val prompt = new Prompt(java.util.List.of(
                 new SystemMessage(SYSTEM),
-                new UserMessage(userText(question, expectedFacts, response) + "\n" + format)));
+                new UserMessage(userText(request) + "\n" + format)));
         val content = evalJudgeClient.prompt(prompt).call().content();
         log.debug("Raw judge response: {}", content);
         return Try.of(() -> converter.convert(content))
@@ -48,14 +46,15 @@ public class EvalJudge {
                 .getOrElse(() -> new JudgeResult(false, false, "judge parse failed: " + content));
     }
 
-    private static String userText(String question, List<String> expectedFacts, ChatResponse response) {
+    private static String userText(EvaluationRequest request) {
+        val context = io.vavr.collection.List.ofAll(request.getDataList())
+                .map(Document::getText)
+                .mkString("\n");
         return """
                 Question: %s
-                Expected facts: %s
+                Context:
+                %s
                 Agent answer: %s
-                Cypher queries: %s
-                Rows: %s
-                """.formatted(question, String.join(", ", expectedFacts),
-                        response.answer(), response.cypherQueries(), response.results());
+                """.formatted(request.getUserText(), context, request.getResponseContent());
     }
 }

@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import net.jimmykw.knowledgegraph.config.AppProperties;
+import net.jimmykw.knowledgegraph.config.OpenCodeGoHeaders;
 import net.jimmykw.knowledgegraph.exception.InvalidPromptException;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
@@ -37,9 +38,12 @@ public class ChatService {
                 .toolExecutionEligibilityChecker(cappedChecker(trace, maxRounds))
                 .build();
         val client = chatChatClient.mutate().defaultAdvisors(advisor).build();
-        val answer = client.prompt(prompt)
-                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, resolvedConversationId))
-                .call().content();
+        // Scope the whole tool-call loop to the conversation id so every LLM request carries it
+        // as the OpenCode Go session header (provider rejects requests without one).
+        val answer = OpenCodeGoHeaders.withSession(resolvedConversationId,
+                () -> client.prompt(prompt)
+                        .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, resolvedConversationId))
+                        .call().content());
         if (answer == null || answer.isBlank()) {
             log.warn("Chat: model returned blank answer after {} tool round(s)", trace.roundCount());
         }
@@ -78,7 +82,7 @@ public class ChatService {
     private static ChatResponse buildResponse(String answer, ToolTrace trace, String conversationId) {
         return new ChatResponse(answer, trace.lastCypher(), trace.lastRows(),
                 trace.lastTruncated(), trace.lastCount(), resolveError(trace), trace.skillsExecuted(),
-                trace.cypherQueries(), conversationId);
+                trace.cypherQueries(), conversationId, trace.evidence());
     }
 
     private static String resolveError(ToolTrace trace) {

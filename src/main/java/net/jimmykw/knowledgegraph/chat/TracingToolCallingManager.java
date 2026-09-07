@@ -115,12 +115,12 @@ public class TracingToolCallingManager implements ToolCallingManager {
         if (parsed.error() != null) {
             trace.recordToolCall(RUN_READ_CYPHER, arguments, response, parsed.error());
             trace.setError(parsed.error());
-            trace.recordRunReadCypher(cypher, List.of(), 0, false);
+            trace.recordRunReadCypher(cypher, List.of(), 0, false, parsed.error());
             return;
         }
         trace.recordToolCall(RUN_READ_CYPHER, arguments, response, null);
         trace.setError(null);
-        trace.recordRunReadCypher(cypher, parsed.rows(), parsed.count(), parsed.truncated());
+        trace.recordRunReadCypher(cypher, parsed.rows(), parsed.count(), parsed.truncated(), null);
     }
 
     private static String extractCypher(String arguments) {

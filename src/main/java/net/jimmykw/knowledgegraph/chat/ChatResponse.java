@@ -12,5 +12,6 @@ public record ChatResponse(
         String error,
         List<String> skillsExecuted,
         List<String> cypherQueries,
-        String conversationId) {
+        String conversationId,
+        List<QueryEvidence> evidence) {
 }

@@ -72,7 +72,10 @@ public class ChatClientConfig {
     }
 
     private static OpenAiChatModel model(OpenAiChatOptions options) {
-        return OpenAiChatModel.builder().options(options).build();
+        return OpenAiChatModel.builder()
+                .options(options)
+                .httpClientBuilderCustomizer(OpenCodeGoHeaders.httpClientCustomizer())
+                .build();
     }
 
     @Bean
