@@ -18,7 +18,15 @@ public class KnowledgeGraphJudgeEvaluator implements Evaluator {
 
     @Override
     public EvaluationResponse evaluate(EvaluationRequest request) {
-        val result = judge.score(request);
+        return toResponse(judge.score(request));
+    }
+
+    /** Scores a false-premise probe case with the probe-specific rubric. */
+    public EvaluationResponse evaluateProbe(EvaluationRequest request) {
+        return toResponse(judge.scoreProbe(request));
+    }
+
+    private static EvaluationResponse toResponse(JudgeResult result) {
         log.info("--- judge score --- grounded: {} | correct: {} | rationale: {}",
                 result.grounded(), result.correct(), result.rationale());
         return new EvaluationResponse(result.grounded() && result.correct(),

@@ -45,6 +45,9 @@ tasks.withType<Test> {
 tasks.register<org.gradle.api.tasks.testing.Test>("chatEval") {
     group = "verification"
     systemProperty("chat.eval", "true")
+    // Forward -Deval.* (e.g. -Deval.factcheck=true, -Deval.judge.model=...) from the Gradle JVM to the test JVM.
+    listOf("eval.factcheck", "eval.judge.base-url", "eval.judge.api-key", "eval.judge.model", "eval.judge.timeout")
+        .forEach { name -> System.getProperty(name)?.let { value -> systemProperty(name, value) } }
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
     testLogging {

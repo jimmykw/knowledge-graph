@@ -1,5 +1,14 @@
 # Spec: Adopt Spring AI Evaluation API in chatEval
 
+> **Revision (2026-10-03):** the code has drifted from the sections below. Current behavior:
+> `EvalJudge.score(EvaluationRequest)` takes one context `Document` per executed query (evidence)
+> plus an "expected facts" document tagged `role=expected-facts`, which the judge uses for
+> correctness only, never for grounding. Multi-turn cases pass both turns as the question. A judge
+> parse failure throws instead of returning `grounded=false`. `GoldenCase` has `minExpectedMatches`.
+> The fact-check is advisory and off by default (`-Deval.factcheck=true`); the judge client timeout is 300s with 1 client retry. A once-per-run preflight (Neo4j reachable + `:Document` present + one LLM ping) fails every case
+> with a clear message. The judge model defaults to `app.models.chat` but can be overridden with
+> `-Deval.judge.base-url / api-key / model`. The probe case also asserts read-only Cypher and `correct`.
+
 ## Summary
 Refactor the chat eval harness's LLM-as-judge layer (`./gradlew chatEval`) onto the Spring AI 2.0
 Model Evaluation API (`Evaluator` / `EvaluationRequest` / `EvaluationResponse`). The existing domain

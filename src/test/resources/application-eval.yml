@@ -5,3 +5,15 @@ spring:
   sql:
     init:
       mode: always
+
+app:
+  models:
+    chat:
+      # Deterministic agent for the eval; production keeps its own temperature.
+      temperature: 0.0
+
+eval:
+  judge:
+    # Judge is a different model from the agent under test. api-key falls back to app.models.chat.api-key.
+    base-url: https://openrouter.ai/api/v1
+    model: z-ai/glm-5.3-flash

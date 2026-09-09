@@ -9,10 +9,11 @@ app:
     history-window: 20
   models:
     extract:
-      # Active: hosted GLM 5.2 (OpenAI-compatible) for faster, genuinely-parallel extraction.
-      base-url: https://opencode.ai/zen/go/v1
+      # Active: OpenRouter (OpenAI-compatible) for faster, genuinely-parallel extraction.
+      base-url: https://openrouter.ai/api/v1
       api-key: ${OPENAI_API_KEY}
-      model: glm-5.3-flash
+      model: stealth/space-bunny-alpha
+#      model: z-ai/glm-5.3-flash
       temperature: 0.1
       timeout: 600s
       max-retries: 5
@@ -23,13 +24,16 @@ app:
       # model: qwen3.8:27b-mlx
       # pool-size: 2
     chat:
-      base-url: https://opencode.ai/zen/go/v1
-#      base-url: https://opencode.ai/zen/v1
+      base-url: https://openrouter.ai/api/v1
       api-key: ${OPENAI_API_KEY}
-#      model: muse-spark-1.2-contributor-free
-#      model: mimo-v2.5-free
-      model: glm-5.3-flash
+      model: stealth/space-bunny-alpha
+#      model: z-ai/glm-5.3-flash
+#      base-url: https://opencode.ai/zen/go/v1
+#      model: glm-5.3-flash
+#      model: glm-5.3
+#      model: glm-5.2
 #      model: qwen3.8-max
+#      model: qwen3.8-flash
 #      model: kimi-k3
 #      base-url: http://localhost:11434/v1
 #      api-key: ${EXTRACT_API_KEY:ollama}

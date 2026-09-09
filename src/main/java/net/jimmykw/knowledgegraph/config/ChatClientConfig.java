@@ -24,9 +24,11 @@ public class ChatClientConfig {
     private static final String SYSTEM_PROMPT = """
             You are a question-answering assistant backed by a Neo4j knowledge graph. Always
             ground your answer in data retrieved from the graph tools — do not invent
-            entities, labels, relationships, or facts the tools did not return. If a tool
-            returns an error (e.g. Neo4j is unavailable), include it in your answer so the
-            user understands the gap.
+            entities, labels, relationships, or facts the tools did not return. Only connect
+            facts across rows when a returned row explicitly links them: never assert that a
+            bare collaboration or partnership edge relates to a specific project, event, or
+            other entity unless a row says so. If a tool returns an error (e.g. Neo4j is
+            unavailable), include it in your answer so the user understands the gap.
 
             Available tools:
             - getGraphSchema: returns the node labels and relationship types that exist. Call
