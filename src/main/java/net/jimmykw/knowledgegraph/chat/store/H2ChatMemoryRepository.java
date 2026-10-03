@@ -31,8 +31,8 @@ public class H2ChatMemoryRepository implements ChatMemoryRepository {
     @Override
     public List<Message> findByConversationId(String conversationId) {
         return Try.of(() -> jdbcTemplate.query(
-                        "SELECT message_type, content FROM chat_messages WHERE conversation_id = ? ORDER BY seq",
-                        (rs, rowNum) -> toMessage(rs.getString("message_type"), rs.getString("content")),
+                        "SELECT message_type, content, blocked FROM chat_messages WHERE conversation_id = ? ORDER BY seq",
+                        (rs, rowNum) -> toMessage(rs.getString("message_type"), rs.getString("content"), rs.getBoolean("blocked")),
                         conversationId))
                 .onFailure(ex -> log.warn("Failed to load conversation history for {}", conversationId, ex))
                 .getOrElse(List.of());
@@ -45,8 +45,9 @@ public class H2ChatMemoryRepository implements ChatMemoryRepository {
                     for (int seq = 0; seq < messages.size(); seq++) {
                         val message = messages.get(seq);
                         jdbcTemplate.update(
-                                "INSERT INTO chat_messages (conversation_id, seq, message_type, content) VALUES (?, ?, ?, ?)",
-                                conversationId, seq, message.getMessageType().name(), message.getText());
+                                "INSERT INTO chat_messages (conversation_id, seq, message_type, content, blocked) VALUES (?, ?, ?, ?, ?)",
+                                conversationId, seq, message.getMessageType().name(), message.getText(),
+                                BlockedMessages.isBlocked(message));
                     }
                 })
                 .onFailure(ex -> log.error("Failed to persist conversation history for {}", conversationId, ex));
@@ -59,11 +60,11 @@ public class H2ChatMemoryRepository implements ChatMemoryRepository {
                 .onFailure(ex -> log.warn("Failed to delete conversation history for {}", conversationId, ex));
     }
 
-    private static Message toMessage(String messageType, String content) {
+    private static Message toMessage(String messageType, String content, boolean blocked) {
         val type = MessageType.valueOf(messageType);
         return switch (type) {
-            case USER -> new UserMessage(content);
-            case ASSISTANT -> new AssistantMessage(content);
+            case USER -> blocked ? BlockedMessages.user(content) : new UserMessage(content);
+            case ASSISTANT -> blocked ? BlockedMessages.assistant(content) : new AssistantMessage(content);
             case SYSTEM -> new SystemMessage(content);
             case TOOL -> new UserMessage(content);
         };

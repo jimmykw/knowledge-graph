@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import net.jimmykw.knowledgegraph.chat.routing.QuestionRouter;
+import net.jimmykw.knowledgegraph.chat.store.BlockedMessages;
 import net.jimmykw.knowledgegraph.chat.routing.RouteDecision;
 import net.jimmykw.knowledgegraph.chat.routing.RouteStatus;
 import net.jimmykw.knowledgegraph.chat.routing.RoutingReplies;
@@ -18,8 +19,6 @@ import net.jimmykw.knowledgegraph.exception.InvalidPromptException;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.messages.AssistantMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.model.tool.ToolExecutionEligibilityChecker;
 
@@ -36,7 +35,7 @@ public class ChatService {
     public ChatResponse chat(String prompt, String conversationId) {
         validate(prompt);
         val resolvedConversationId = resolveConversationId(conversationId);
-        val route = router.route(prompt, List.ofAll(chatMemory.get(resolvedConversationId)));
+        val route = router.route(prompt, routingHistory(resolvedConversationId));
         return route.filter(decision -> decision.status() == RouteStatus.BLOCKED)
                 .map(decision -> blockedResponse(prompt, resolvedConversationId, decision))
                 .getOrElse(() -> runAgent(prompt, resolvedConversationId, route));
@@ -52,18 +51,28 @@ public class ChatService {
                 java.util.List.of(), decision);
     }
 
-    /** Tool-free model call; its memory advisor stores both turn messages. */
+    /** Tool-free model call over the stored history; the turn is stored flagged as blocked. */
     private String askDirectly(String prompt, String conversationId) {
-        return OpenCodeGoHeaders.withSession(conversationId,
-                () -> directChatClient.prompt(prompt)
-                        .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, conversationId))
-                        .call().content());
+        val history = chatMemory.get(conversationId);
+        val answer = OpenCodeGoHeaders.withSession(conversationId,
+                () -> directChatClient.prompt().messages(history).user(prompt).call().content());
+        storeBlockedTurn(prompt, answer, conversationId);
+        return answer;
     }
 
     private String cannedReply(String prompt, String conversationId, RouteDecision decision) {
         val reply = RoutingReplies.forIntent(decision.intent());
-        chatMemory.add(conversationId, java.util.List.of(new UserMessage(prompt), new AssistantMessage(reply)));
+        storeBlockedTurn(prompt, reply, conversationId);
         return reply;
+    }
+
+    private void storeBlockedTurn(String prompt, String reply, String conversationId) {
+        chatMemory.add(conversationId, java.util.List.of(BlockedMessages.user(prompt), BlockedMessages.assistant(reply)));
+    }
+
+    /** History for the classifier: earlier blocked exchanges are left out so they cannot bias the next message. */
+    private List<org.springframework.ai.chat.messages.Message> routingHistory(String conversationId) {
+        return List.ofAll(chatMemory.get(conversationId)).reject(BlockedMessages::isBlocked);
     }
 
     private ChatResponse runAgent(String prompt, String resolvedConversationId, Option<RouteDecision> route) {

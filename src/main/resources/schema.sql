@@ -6,4 +6,5 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     content         CLOB        NOT NULL,
     created_at      TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS blocked BOOLEAN DEFAULT FALSE NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_chat_messages_conv ON chat_messages (conversation_id, seq);

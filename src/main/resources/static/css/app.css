@@ -228,14 +228,16 @@ body {
   border-radius: 0.3rem;
 }
 .kg-trace-toggle:hover {
-  background: var(--pico-secondary-background, rgba(0,0,0,0.06));
+  background: rgba(127,127,127,0.18);
   color: var(--pico-color, inherit);
 }
 .kg-trace-body {
   margin-top: 0.35rem;
   padding: 0.5rem 0.6rem;
   border-radius: 0.4rem;
-  background: var(--pico-secondary-background, rgba(127,127,127,0.08));
+  /* Neutral tint + explicit text color: Pico's --pico-secondary-background is a dark slate that made text unreadable. */
+  background: rgba(127,127,127,0.12);
+  color: var(--pico-color, inherit);
   font-size: 0.82rem;
 }
 .kg-trace-section { margin: 0.25rem 0; }
@@ -258,8 +260,9 @@ body {
 .kg-skills li {
   padding: 0.1rem 0.45rem;
   border-radius: 0.75rem;
-  background: var(--pico-card-background-color, rgba(255,255,255,0.6));
-  border: 1px solid var(--pico-muted-border-color, #e5e7eb);
+  background: rgba(127,127,127,0.12);
+  color: var(--pico-color, inherit);
+  border: 1px solid rgba(127,127,127,0.4);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.78rem;
 }
@@ -273,6 +276,9 @@ body {
   border-radius: 0.4rem;
   overflow-x: auto;
   font-size: 0.8rem;
+  /* Fallback in case the highlight.js theme CSS does not load; matches github-dark. */
+  background: #0d1117;
+  color: #c9d1d9;
 }
 .kg-copy {
   position: absolute;
@@ -293,13 +299,15 @@ body {
 .kg-trace-body th,
 .kg-trace-body td {
   padding: 0.25rem 0.45rem;
-  border: 1px solid var(--pico-muted-border-color, #e5e7eb);
+  border: 1px solid rgba(127,127,127,0.4);
+  color: var(--pico-color, inherit);
+  background: transparent;
   white-space: nowrap;
   vertical-align: top;
   text-align: left;
 }
 .kg-trace-body th {
-  background: var(--pico-card-background-color, rgba(255,255,255,0.5));
+  background: rgba(127,127,127,0.2);
   font-weight: 600;
 }
 .kg-json {
@@ -309,6 +317,8 @@ body {
   font-size: 0.75rem;
   max-height: 8rem;
   overflow: auto;
+  background: transparent;
+  color: inherit;
 }
 .kg-trace-error pre {
   margin: 0;
@@ -380,10 +390,13 @@ body {
 
 .kg-route-badge {
   display: inline-block;
-  margin-right: 0.4rem;
-  padding: 0.05rem 0.45rem;
+  margin: 0 0.4rem 0.2rem 0;
+  padding: 0.15rem 0.6rem;
   border-radius: 0.8rem;
-  font-size: 0.75rem;
-  background: var(--pico-secondary-background, rgba(127,127,127,0.15));
-  color: var(--pico-muted-color, #6b7280);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.3;
+  /* Fixed colors (not theme variables) so contrast holds in both light and dark themes. */
+  background: #1e3a8a;
+  color: #ffffff;
 }

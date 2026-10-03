@@ -13,6 +13,7 @@ import net.jimmykw.knowledgegraph.chat.routing.QuestionRouter;
 import net.jimmykw.knowledgegraph.chat.routing.RouteDecision;
 import net.jimmykw.knowledgegraph.chat.routing.RouteIntent;
 import net.jimmykw.knowledgegraph.chat.routing.RouteStatus;
+import net.jimmykw.knowledgegraph.chat.store.BlockedMessages;
 import net.jimmykw.knowledgegraph.config.AppProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +34,7 @@ class ChatServiceRoutingTest {
         when(client.mutate().defaultAdvisors(any(org.springframework.ai.chat.client.advisor.api.Advisor.class)).build()
                 .prompt(any(String.class)).advisors(any(java.util.function.Consumer.class)).call().content()).thenReturn("agent answer");
         direct = mock(ChatClient.class, RETURNS_DEEP_STUBS);
-        when(direct.prompt(any(String.class)).advisors(any(java.util.function.Consumer.class)).call().content()).thenReturn("direct answer");
+        when(direct.prompt().messages(any(java.util.List.class)).user(any(String.class)).call().content()).thenReturn("direct answer");
         memory = MessageWindowChatMemory.builder().chatMemoryRepository(new InMemoryChatMemoryRepository()).maxMessages(20).build();
     }
 
@@ -54,6 +55,7 @@ class ChatServiceRoutingTest {
         assertThat(response.rowCount()).isZero();
         assertThat(response.evidence()).isEmpty();
         verifyNoInteractions(untouched);
+        assertThat(memory.get("c1")).hasSize(2).allMatch(BlockedMessages::isBlocked);
     }
 
     @Test

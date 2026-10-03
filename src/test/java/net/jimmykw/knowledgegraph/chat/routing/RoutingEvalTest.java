@@ -76,6 +76,16 @@ class RoutingEvalTest {
         assertThat(blocked).isPositive();
     }
 
+    @Test
+    void graphQuestionAfterBlockedTurnIsNotBlocked() {
+        val router = router();
+        val history = List.<Message>of(new UserMessage("Who won the 2018 World Cup?"),
+                new AssistantMessage("France won the 2018 FIFA World Cup, beating Croatia 4-2."));
+        val results = List.of("What did IBM create?", "What did IBM invent?", "Who founded Microsoft?")
+                .map(p -> run(router, p, history));
+        assertThat(results.filter(d -> d.status() == RouteStatus.BLOCKED)).isEmpty();
+    }
+
     private static RouteDecision run(QuestionRouter router, String prompt, List<Message> history) {
         val decision = router.route(prompt, history).get();
         log.info("ROUTING EVAL: [{}] {} graphP={} <- \"{}\"", decision.status(), decision.intent(), decision.graphProbability(), prompt);
@@ -87,6 +97,6 @@ class RoutingEvalTest {
         assertThat(key).as("OPENAI_API_KEY (OpenRouter key) must be set").isNotBlank();
         val routing = new Routing(true, Double.parseDouble(System.getProperty("routing.threshold", "0.9")),
                 Duration.ofSeconds(10), null, key, null);
-        return new TypeSafeQuestionRouter(new RestSystemOneClient(routing), routing.blockThreshold());
+        return new TypeSafeQuestionRouter(new RestSystemOneClient(routing, () -> List.of("HistoryOfIBM", "HistoryOfApple", "HisotryOfMicrosoft")), routing.blockThreshold());
     }
 }

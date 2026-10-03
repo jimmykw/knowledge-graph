@@ -10,8 +10,8 @@ app:
   routing:
     # Off by default. When enabled, the prompt AND recent conversation history (including assistant
     # answers built from graph rows) are sent to OpenRouter's System One endpoint (TypeSafe Jev).
-    enabled: false
-    block-threshold: 0.7
+    enabled: true
+    block-threshold: 0.9
     timeout: 5s
     base-url: https://openrouter.ai/api/v1
     api-key: ${OPENAI_API_KEY}

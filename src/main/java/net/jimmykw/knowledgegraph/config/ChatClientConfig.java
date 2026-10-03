@@ -80,11 +80,8 @@ public class ChatClientConfig {
 
     /** Tool-free client for turns the intent gate blocked: answers from general knowledge, never queries the graph. */
     @Bean
-    ChatClient directChatClient(OpenAiChatModel chatChatModel, ChatMemory chatMemory) {
-        return ChatClient.builder(chatChatModel)
-                .defaultSystem(DIRECT_SYSTEM_PROMPT)
-                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
-                .build();
+    ChatClient directChatClient(OpenAiChatModel chatChatModel) {
+        return ChatClient.builder(chatChatModel).defaultSystem(DIRECT_SYSTEM_PROMPT).build();
     }
 
     private static OpenAiChatModel model(OpenAiChatOptions options) {
