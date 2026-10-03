@@ -58,6 +58,12 @@ spring:
       # hard-fail context startup when no credential is resolvable. The app's own chat and
       # extraction models are configured under app.models above.
       api-key: ${OPENAI_API_KEY}
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          # Static UI files change with the app; revalidate every load so browsers never keep a stale index.html/CSS.
+          no-cache: true
   servlet:
     multipart:
       max-file-size: 10MB

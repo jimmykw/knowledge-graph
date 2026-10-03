@@ -1,3 +1,8 @@
+/* Error red with enough contrast on both light and dark backgrounds (Pico's primary is blue, not red). */
+:root { --kg-danger: #b91c1c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --kg-danger: #fca5a5; } }
+:root[data-theme="dark"] { --kg-danger: #fca5a5; }
+
 [x-cloak] { display: none !important; }
 
 html, body { height: 100%; }
@@ -63,8 +68,8 @@ body {
   text-overflow: ellipsis;
   border-radius: 0.375rem;
 }
-.kg-conv-btn:hover { background: var(--pico-secondary-background, rgba(0,0,0,0.05)); }
-.kg-active { background: var(--pico-primary-background, rgba(0,0,0,0.08)); }
+.kg-conv-btn:hover { background: rgba(127,127,127,0.18); }
+.kg-active { background: rgba(127,127,127,0.28); color: var(--pico-color, inherit); }
 .kg-active .kg-conv-btn { font-weight: 600; }
 .kg-trash {
   flex: 0 0 auto;
@@ -81,7 +86,7 @@ body {
 }
 .kg-conv:hover .kg-trash,
 .kg-conv:focus-within .kg-trash { opacity: 1; }
-.kg-trash:hover { color: var(--pico-primary, #dc2626); background: var(--pico-secondary-background, rgba(0,0,0,0.06)); }
+.kg-trash:hover { color: var(--kg-danger); background: rgba(127,127,127,0.18); }
 .kg-sidebar-empty {
   margin: 0.5rem 0;
   text-align: center;
@@ -116,13 +121,14 @@ body {
 }
 .kg-dropzone:hover { border-color: var(--pico-primary, #3b82f6); color: var(--pico-color, inherit); }
 .kg-dragover {
-  background: var(--pico-primary-background, rgba(59,130,246,0.12));
+  background: rgba(59,130,246,0.15);
+  color: var(--pico-color, inherit);
   border-color: var(--pico-primary, #3b82f6);
   color: var(--pico-color, inherit);
 }
 .kg-dropzone-error {
-  border-color: var(--pico-primary, #dc2626);
-  color: var(--pico-primary, #dc2626);
+  border-color: var(--kg-danger);
+  color: var(--kg-danger);
 }
 .kg-file-input { display: none; }
 
@@ -178,16 +184,26 @@ body {
   padding: 0.6rem;
   border-radius: 0.4rem;
   overflow-x: auto;
+  /* Explicit colors: Pico's code colors are too dim on the card background, especially in dark mode. */
+  background: rgba(127,127,127,0.18);
+  color: var(--pico-color, inherit);
+}
+.kg-md pre code {
+  background: transparent;
+  color: inherit;
 }
 .kg-md code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85em;
 }
-.kg-md p code,
-.kg-md li code {
+/* All inline code (paragraphs, list items, table cells, headings, blockquotes), not only p/li. */
+.kg-md :not(pre) > code {
   padding: 0.1rem 0.3rem;
   border-radius: 0.3rem;
-  background: var(--pico-secondary-background, rgba(127,127,127,0.15));
+  /* Pico's --pico-secondary-background is a dark slate; inline code text was unreadable on it. */
+  background: rgba(127,127,127,0.22);
+  color: var(--pico-color, inherit);
+  font-weight: 600;
 }
 .kg-md table { display: block; overflow-x: auto; }
 
@@ -200,10 +216,10 @@ body {
   padding: 0.35rem 0.75rem;
   border-radius: 1rem;
   font-size: 0.85rem;
-  color: var(--pico-muted-color, #6b7280);
-  background: var(--pico-secondary-background, rgba(127,127,127,0.1));
+  color: var(--pico-color, inherit);
+  background: rgba(127,127,127,0.15);
 }
-.kg-system.kg-error { color: var(--pico-primary, #dc2626); }
+.kg-system.kg-error { color: var(--kg-danger); }
 .kg-icon { font-size: 0.95rem; line-height: 1; }
 .kg-progress .kg-icon {
   display: inline-block;
@@ -258,6 +274,7 @@ body {
   gap: 0.3rem;
 }
 .kg-skills li {
+  list-style: none;
   padding: 0.1rem 0.45rem;
   border-radius: 0.75rem;
   background: rgba(127,127,127,0.12);
@@ -325,7 +342,7 @@ body {
   padding: 0.5rem;
   border-radius: 0.4rem;
   background: rgba(220,38,38,0.08);
-  color: var(--pico-primary, #dc2626);
+  color: var(--kg-danger);
   font-size: 0.78rem;
   white-space: pre-wrap;
   overflow-x: auto;
