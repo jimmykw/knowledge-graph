@@ -11,6 +11,8 @@ import net.jimmykw.knowledgegraph.chat.ChatService;
 import net.jimmykw.knowledgegraph.chat.CypherExecutor;
 import net.jimmykw.knowledgegraph.chat.GraphTools;
 import net.jimmykw.knowledgegraph.chat.SchemaService;
+import net.jimmykw.knowledgegraph.chat.routing.GraphCatalog;
+import net.jimmykw.knowledgegraph.chat.routing.GraphProfile;
 import net.jimmykw.knowledgegraph.chat.routing.NoOpQuestionRouter;
 import net.jimmykw.knowledgegraph.chat.routing.QuestionRouter;
 import net.jimmykw.knowledgegraph.chat.routing.RestSystemOneClient;
@@ -71,11 +73,21 @@ public class AppConfig {
     }
 
     @Bean
-    QuestionRouter questionRouter(AppProperties appProperties) {
+    QuestionRouter questionRouter(AppProperties appProperties, Neo4jGraphWriter writer) {
         val routing = appProperties.routing();
         return routing.enabled()
-                ? new TypeSafeQuestionRouter(new RestSystemOneClient(routing), routing.blockThreshold())
+                ? new TypeSafeQuestionRouter(new RestSystemOneClient(routing, warmed(new GraphCatalog(() -> graphProfile(writer)))), routing.blockThreshold())
                 : new NoOpQuestionRouter();
+    }
+
+    private static GraphProfile graphProfile(Neo4jGraphWriter writer) {
+        return new GraphProfile(writer.readDocumentNames(), writer.readTopEntityTypes(10), writer.readTopEntityNames(30));
+    }
+
+    /** Loads the profile once at startup (failures are logged and retried on the next call). */
+    private static GraphCatalog warmed(GraphCatalog catalog) {
+        catalog.get();
+        return catalog;
     }
 
     @Bean

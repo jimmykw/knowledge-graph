@@ -53,6 +53,32 @@ public class Neo4jGraphWriter {
         });
     }
 
+    /** Filenames of the ingested {@code :Document} nodes, oldest first. */
+    public List<String> readDocumentNames() {
+        return write(session -> List.ofAll(session.run(
+                        "MATCH (d:Document) WHERE d.filename IS NOT NULL AND d.filename <> '' "
+                                + "RETURN d.filename AS name ORDER BY d.uploadedAt").list())
+                .map(row -> row.get("name").asString()));
+    }
+
+    /** Entity labels, most numerous first (excludes {@code :Document} and {@code :Schema} bookkeeping nodes). */
+    public List<String> readTopEntityTypes(int limit) {
+        return write(session -> List.ofAll(session.run(
+                        "MATCH (n) WHERE NOT n:Document AND NOT n:Schema UNWIND labels(n) AS label "
+                                + "RETURN label, count(*) AS entities ORDER BY entities DESC LIMIT $limit",
+                        java.util.Map.of("limit", limit)).list())
+                .map(row -> row.get("label").asString()));
+    }
+
+    /** Names of the most-connected entities, most connected first; may repeat when one name has several labels. */
+    public List<String> readTopEntityNames(int limit) {
+        return write(session -> List.ofAll(session.run(
+                        "MATCH (n) WHERE NOT n:Document AND NOT n:Schema AND n.name IS NOT NULL "
+                                + "WITH n, COUNT { (n)--() } AS degree ORDER BY degree DESC LIMIT $limit RETURN n.name AS name",
+                        java.util.Map.of("limit", limit)).list())
+                .map(row -> row.get("name").asString()));
+    }
+
     public long mergeDocument(String hash, String filename) {
         val id = write(session -> {
             val record = session.run(

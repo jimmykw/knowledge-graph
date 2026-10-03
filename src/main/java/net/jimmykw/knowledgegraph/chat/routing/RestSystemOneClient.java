@@ -20,6 +20,10 @@ import org.springframework.web.client.RestClient;
 @Slf4j
 public class RestSystemOneClient implements SystemOneClient {
 
+    private static final String GRAPH_HINT = " The listed documents, entity types and entities only sample the graph: it also covers the "
+            + "products, technologies, people, companies and events within those subjects. A question about any of those is GRAPH, "
+            + "even if short, vague or worded like general knowledge (e.g. a bare topic such as 'hard disks').";
+
     static final String QUESTION = "intent";
     private static final String INSTRUCTIONS = "Classify ONLY the text after 'New message:'. The assistant answers questions from a "
             + "knowledge graph built from the loaded documents. Earlier conversation is context for follow-ups only: an earlier "
@@ -28,10 +32,10 @@ public class RestSystemOneClient implements SystemOneClient {
 
     private final RestClient client;
     private final String model;
-    private final Supplier<List<String>> documentTitles;
+    private final Supplier<GraphProfile> graphProfile;
 
-    public RestSystemOneClient(Routing routing, Supplier<List<String>> documentTitles) {
-        this.documentTitles = documentTitles;
+    public RestSystemOneClient(Routing routing, Supplier<GraphProfile> graphProfile) {
+        this.graphProfile = graphProfile;
         val factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(routing.timeout());
         factory.setReadTimeout(routing.timeout());
@@ -56,34 +60,40 @@ public class RestSystemOneClient implements SystemOneClient {
     }
 
     private String instructions() {
-        val titles = documentTitles.get();
-        return titles.isEmpty()
-                ? INSTRUCTIONS
-                : INSTRUCTIONS + " Loaded documents: " + titles.mkString("; ") + ". A question about the subjects, companies, people, "
-                        + "products or events these documents cover is GRAPH, even if worded like general knowledge.";
+        val profile = graphProfile.get();
+        return profile.isEmpty() ? INSTRUCTIONS : INSTRUCTIONS + describe(profile) + GRAPH_HINT;
+    }
+
+    private static String describe(GraphProfile profile) {
+        return section(" Loaded documents: ", profile.documents()) + section(" Entity types in the graph: ", profile.entityTypes())
+                + section(" Most-connected entities: ", profile.topEntities());
+    }
+
+    private static String section(String heading, List<String> items) {
+        return items.isEmpty() ? "" : heading + items.mkString("; ") + ".";
     }
 
     @SuppressWarnings("unchecked")
     static Map<RouteIntent, Double> parse(java.util.Map<String, Object> response) {
         return Option.of(response)
-                .map(r -> r.get("answers")).filter(java.util.Map.class::isInstance)
-                .map(a -> ((java.util.Map<String, Object>) a).get(QUESTION)).filter(java.util.Map.class::isInstance)
-                .map(a -> ((java.util.Map<String, Object>) a).get("probabilities")).filter(java.util.Map.class::isInstance)
-                .map(p -> HashMap.ofAll((java.util.Map<String, Object>) p))
+                .map(body -> body.get("answers")).filter(java.util.Map.class::isInstance)
+                .map(answers -> ((java.util.Map<String, Object>) answers).get(QUESTION)).filter(java.util.Map.class::isInstance)
+                .map(answer -> ((java.util.Map<String, Object>) answer).get("probabilities")).filter(java.util.Map.class::isInstance)
+                .map(raw -> HashMap.ofAll((java.util.Map<String, Object>) raw))
                 .map(RestSystemOneClient::toIntents)
-                .filter(m -> !m.isEmpty())
+                .filter(intents -> !intents.isEmpty())
                 .getOrElseThrow(() -> new IllegalStateException("System One response had no usable intent probabilities"));
     }
 
     private static Map<RouteIntent, Double> toIntents(Map<String, Object> raw) {
-        return raw.map((name, p) -> io.vavr.Tuple.of(
+        return raw.map((name, probability) -> io.vavr.Tuple.of(
                         Try.of(() -> RouteIntent.valueOf(name)).getOrElseThrow(() -> new IllegalStateException("Unknown intent: " + name)),
-                        ((Number) p).doubleValue()));
+                        ((Number) probability).doubleValue()));
     }
 
     private static void logCost(java.util.Map<?, ?> response) {
-        Option.of(response).map(r -> r.get("usage")).filter(java.util.Map.class::isInstance)
-                .forEach(u -> log.debug("Routing: System One usage {}", u));
+        Option.of(response).map(body -> body.get("usage")).filter(java.util.Map.class::isInstance)
+                .forEach(usage -> log.debug("Routing: System One usage {}", usage));
     }
 
     private static java.util.Map<String, String> criteria() {

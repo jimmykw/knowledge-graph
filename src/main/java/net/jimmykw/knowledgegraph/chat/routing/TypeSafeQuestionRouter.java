@@ -24,14 +24,14 @@ public class TypeSafeQuestionRouter implements QuestionRouter {
         val state = buildState(prompt, history);
         val decision = attempt(state, 1)
                 .map(probabilities -> RouteDecision.decide(probabilities, blockThreshold))
-                .onSuccess(d -> log.info("Routing: {} intent={} graphP={}", d.status(), d.intent(), d.graphProbability()))
-                .onFailure(e -> log.warn("Routing: classification failed, running agent ({})", e.toString()))
+                .onSuccess(routed -> log.info("Routing: {} intent={} graphP={}", routed.status(), routed.intent(), routed.graphProbability()))
+                .onFailure(error -> log.warn("Routing: classification failed, running agent ({})", error.toString()))
                 .getOrElse(RouteDecision.skipped());
         return Option.of(decision);
     }
 
     static String buildState(String prompt, List<Message> history) {
-        val transcript = history.map(m -> m.getMessageType().name().toLowerCase() + ": " + m.getText()).mkString("\n");
+        val transcript = history.map(message -> message.getMessageType().name().toLowerCase() + ": " + message.getText()).mkString("\n");
         val conversation = transcript.isEmpty() ? "" : "Conversation so far:\n" + transcript + "\n\n";
         return conversation + "New message: " + prompt;
     }

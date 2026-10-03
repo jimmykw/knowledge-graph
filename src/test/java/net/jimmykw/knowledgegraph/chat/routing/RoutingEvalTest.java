@@ -58,19 +58,20 @@ class RoutingEvalTest {
     void graphQuestionsAreNeverBlocked() {
         val router = router();
         val golden = List.ofAll(GoldenCases.all());
-        val labeledGraph = LABELED.filter(l -> l.expected() == RouteIntent.GRAPH);
-        val results = labeledGraph.map(l -> run(router, l.prompt(), l.history()))
-                .appendAll(golden.map(c -> run(router, c.prompt(), List.empty())))
-                .appendAll(golden.filter(c -> c.followupPrompt() != null).map(c -> run(router, c.followupPrompt(), IBM_HISTORY)));
-        assertThat(results.filter(d -> d.status() == RouteStatus.BLOCKED)).isEmpty();
-        assertThat(results.filter(d -> d.status() == RouteStatus.SKIPPED)).as("classification failures").isEmpty();
+        val labeledGraph = LABELED.filter(labeled -> labeled.expected() == RouteIntent.GRAPH);
+        val results = labeledGraph.map(labeled -> run(router, labeled.prompt(), labeled.history()))
+                .appendAll(golden.map(goldenCase -> run(router, goldenCase.prompt(), List.empty())))
+                .appendAll(golden.filter(goldenCase -> goldenCase.followupPrompt() != null)
+                        .map(goldenCase -> run(router, goldenCase.followupPrompt(), IBM_HISTORY)));
+        assertThat(results.filter(decision -> decision.status() == RouteStatus.BLOCKED)).isEmpty();
+        assertThat(results.filter(decision -> decision.status() == RouteStatus.SKIPPED)).as("classification failures").isEmpty();
     }
 
     @Test
     void reportsBlockRecallOnNonGraphPrompts() {
         val router = router();
-        val nonGraph = LABELED.filter(l -> l.expected() != RouteIntent.GRAPH);
-        val blocked = nonGraph.count(l -> run(router, l.prompt(), l.history()).status() == RouteStatus.BLOCKED);
+        val nonGraph = LABELED.filter(labeled -> labeled.expected() != RouteIntent.GRAPH);
+        val blocked = nonGraph.count(labeled -> run(router, labeled.prompt(), labeled.history()).status() == RouteStatus.BLOCKED);
         log.info("ROUTING EVAL: blocked {}/{} non-graph prompts (recall {}), false blocks on graph prompts asserted separately",
                 blocked, nonGraph.size(), String.format("%.2f", blocked / (double) nonGraph.size()));
         assertThat(blocked).isPositive();
@@ -82,8 +83,8 @@ class RoutingEvalTest {
         val history = List.<Message>of(new UserMessage("Who won the 2018 World Cup?"),
                 new AssistantMessage("France won the 2018 FIFA World Cup, beating Croatia 4-2."));
         val results = List.of("What did IBM create?", "What did IBM invent?", "Who founded Microsoft?")
-                .map(p -> run(router, p, history));
-        assertThat(results.filter(d -> d.status() == RouteStatus.BLOCKED)).isEmpty();
+                .map(prompt -> run(router, prompt, history));
+        assertThat(results.filter(decision -> decision.status() == RouteStatus.BLOCKED)).isEmpty();
     }
 
     private static RouteDecision run(QuestionRouter router, String prompt, List<Message> history) {
@@ -97,6 +98,8 @@ class RoutingEvalTest {
         assertThat(key).as("OPENAI_API_KEY (OpenRouter key) must be set").isNotBlank();
         val routing = new Routing(true, Double.parseDouble(System.getProperty("routing.threshold", "0.9")),
                 Duration.ofSeconds(10), null, key, null);
-        return new TypeSafeQuestionRouter(new RestSystemOneClient(routing, () -> List.of("HistoryOfIBM", "HistoryOfApple", "HisotryOfMicrosoft")), routing.blockThreshold());
+        return new TypeSafeQuestionRouter(new RestSystemOneClient(routing, () -> new GraphProfile(List.of("HistoryOfIBM", "HistoryOfApple", "HisotryOfMicrosoft"),
+                        List.of("Organization", "Person", "Technology", "Event", "Concept", "Location", "Product"),
+                        List.of("IBM", "Apple Inc.", "Microsoft", "Steve Jobs", "Bill Gates", "iPhone", "Paul Allen", "Windows"))), routing.blockThreshold());
     }
 }
