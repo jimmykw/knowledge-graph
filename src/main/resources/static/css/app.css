@@ -377,3 +377,13 @@ body {
   .kg-dropzone { margin: 0.5rem; }
   .kg-input-row { margin: 0.25rem 0.5rem 0.5rem; }
 }
+
+.kg-route-badge {
+  display: inline-block;
+  margin-right: 0.4rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 0.8rem;
+  font-size: 0.75rem;
+  background: var(--pico-secondary-background, rgba(127,127,127,0.15));
+  color: var(--pico-muted-color, #6b7280);
+}

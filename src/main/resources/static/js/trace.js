@@ -56,8 +56,20 @@ document.addEventListener('alpine:init', () => {
 
     init() {
       if (!this.trace) {
-        this.trace = { cypherQueries: [], skillsExecuted: [], results: [], rowCount: 0, truncated: false, error: null };
+        this.trace = { cypherQueries: [], skillsExecuted: [], results: [], rowCount: 0, truncated: false, error: null, route: null };
       }
+    },
+
+    routeBadge() {
+      const route = this.trace.route;
+      if (!route) {
+        return '';
+      }
+      if (route.status === 'BLOCKED') {
+        const pct = Math.round((1 - (route.graphProbability || 0)) * 100);
+        return '\uD83D\uDCAC not from graph \u00B7 ' + route.intent + ' (' + pct + '%)';
+      }
+      return route.status === 'SKIPPED' ? 'routing skipped' : '';
     },
 
     toggle() {

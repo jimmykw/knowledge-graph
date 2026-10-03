@@ -88,6 +88,7 @@
                 <div class="kg-md" x-html="renderMarkdown(message.content)"></div>
                 <template x-if="message.trace">
                   <div x-data="tracePanel(message.trace)" class="kg-trace">
+                    <span class="kg-route-badge" x-show="routeBadge()" x-text="routeBadge()"></span>
                     <button type="button" class="kg-trace-toggle" @click="toggle()">
                       <span x-text="summary()"></span>
                     </button>

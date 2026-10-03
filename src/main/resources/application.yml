@@ -7,6 +7,15 @@ app:
     max-tool-call-rounds: 10
     query-timeout-ms: 10000
     history-window: 20
+  routing:
+    # Off by default. When enabled, the prompt AND recent conversation history (including assistant
+    # answers built from graph rows) are sent to OpenRouter's System One endpoint (TypeSafe Jev).
+    enabled: false
+    block-threshold: 0.7
+    timeout: 5s
+    base-url: https://openrouter.ai/api/v1
+    api-key: ${OPENAI_API_KEY}
+    model: jev-1.13   # sent as typesafe/jev-1.13; pinned, not jev-latest
   models:
     extract:
       # Active: OpenRouter (OpenAI-compatible) for faster, genuinely-parallel extraction.

@@ -59,6 +59,11 @@ public class ChatClientConfig {
                 .build());
     }
 
+    private static final String DIRECT_SYSTEM_PROMPT = "You are a helpful assistant. The user's message is outside the scope of a "
+            + "knowledge graph of loaded documents, which you do not have access to here. Answer briefly from general knowledge. "
+            + "Do not claim the answer comes from the documents or a database. If you cannot answer (real-time data, requests to "
+            + "modify data) or are unsure, say so plainly.";
+
     @Bean
     ChatClient chatClient(OpenAiChatModel extractChatModel) {
         return ChatClient.builder(extractChatModel).build();
@@ -69,6 +74,15 @@ public class ChatClientConfig {
         return ChatClient.builder(chatChatModel)
                 .defaultSystem(SYSTEM_PROMPT)
                 .defaultTools(skillsTool, graphTools)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .build();
+    }
+
+    /** Tool-free client for turns the intent gate blocked: answers from general knowledge, never queries the graph. */
+    @Bean
+    ChatClient directChatClient(OpenAiChatModel chatChatModel, ChatMemory chatMemory) {
+        return ChatClient.builder(chatChatModel)
+                .defaultSystem(DIRECT_SYSTEM_PROMPT)
                 .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
                 .build();
     }

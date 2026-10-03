@@ -5,7 +5,7 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app")
-public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models models) {
+public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models models, Routing routing) {
 
     public record Chat(int resultRowLimit, int maxPromptLength, int maxToolCallRounds, long queryTimeoutMs,
                         int historyWindow) {
@@ -24,6 +24,24 @@ public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models mod
             }
             if (historyWindow <= 0) {
                 historyWindow = 20;
+            }
+        }
+    }
+
+    public record Routing(boolean enabled, double blockThreshold, Duration timeout, String baseUrl, String apiKey,
+                          String model) {
+        public Routing {
+            if (blockThreshold <= 0) {
+                blockThreshold = 0.9;
+            }
+            if (timeout == null) {
+                timeout = Duration.ofSeconds(5);
+            }
+            if (baseUrl == null || baseUrl.isBlank()) {
+                baseUrl = "https://openrouter.ai/api/v1";
+            }
+            if (model == null || model.isBlank()) {
+                model = "jev-1.13";
             }
         }
     }
@@ -79,5 +97,6 @@ public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models mod
             chat = new Chat(0, 0, 0, 0L, 0);
         }
         if (models == null) { models = new Models(null, null); }
+        if (routing == null) { routing = new Routing(false, 0, null, null, null, null); }
     }
 }

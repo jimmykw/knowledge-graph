@@ -11,6 +11,10 @@ import net.jimmykw.knowledgegraph.chat.ChatService;
 import net.jimmykw.knowledgegraph.chat.CypherExecutor;
 import net.jimmykw.knowledgegraph.chat.GraphTools;
 import net.jimmykw.knowledgegraph.chat.SchemaService;
+import net.jimmykw.knowledgegraph.chat.routing.NoOpQuestionRouter;
+import net.jimmykw.knowledgegraph.chat.routing.QuestionRouter;
+import net.jimmykw.knowledgegraph.chat.routing.RestSystemOneClient;
+import net.jimmykw.knowledgegraph.chat.routing.TypeSafeQuestionRouter;
 import net.jimmykw.knowledgegraph.extract.EntityExtractionService;
 import net.jimmykw.knowledgegraph.extract.ExtractionPrompter;
 import net.jimmykw.knowledgegraph.extract.ExtractionRecords.ExtractionResult;
@@ -67,7 +71,16 @@ public class AppConfig {
     }
 
     @Bean
-    ChatService chatService(ChatClient chatChatClient, AppProperties appProperties, ChatMemory chatMemory) {
-        return new ChatService(chatChatClient, appProperties, chatMemory);
+    QuestionRouter questionRouter(AppProperties appProperties) {
+        val routing = appProperties.routing();
+        return routing.enabled()
+                ? new TypeSafeQuestionRouter(new RestSystemOneClient(routing), routing.blockThreshold())
+                : new NoOpQuestionRouter();
+    }
+
+    @Bean
+    ChatService chatService(ChatClient chatChatClient, ChatClient directChatClient, AppProperties appProperties, ChatMemory chatMemory,
+                            QuestionRouter questionRouter) {
+        return new ChatService(chatChatClient, directChatClient, appProperties, chatMemory, questionRouter);
     }
 }

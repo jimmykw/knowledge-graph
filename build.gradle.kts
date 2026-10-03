@@ -55,3 +55,16 @@ tasks.register<org.gradle.api.tasks.testing.Test>("chatEval") {
         showStandardStreams = true
     }
 }
+
+tasks.register<org.gradle.api.tasks.testing.Test>("routingEval") {
+    group = "verification"
+    systemProperty("routing.eval", "true")
+    System.getProperty("routing.threshold")?.let { systemProperty("routing.threshold", it) }
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    filter { includeTestsMatching("*RoutingEvalTest") }
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = true
+    }
+}

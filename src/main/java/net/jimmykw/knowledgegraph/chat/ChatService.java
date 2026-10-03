@@ -2,16 +2,24 @@ package net.jimmykw.knowledgegraph.chat;
 
 import java.util.UUID;
 
+import io.vavr.collection.List;
 import io.vavr.control.Option;
+import io.vavr.control.Try;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import net.jimmykw.knowledgegraph.chat.routing.QuestionRouter;
+import net.jimmykw.knowledgegraph.chat.routing.RouteDecision;
+import net.jimmykw.knowledgegraph.chat.routing.RouteStatus;
+import net.jimmykw.knowledgegraph.chat.routing.RoutingReplies;
 import net.jimmykw.knowledgegraph.config.AppProperties;
 import net.jimmykw.knowledgegraph.config.OpenCodeGoHeaders;
 import net.jimmykw.knowledgegraph.exception.InvalidPromptException;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.ToolCallingAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.model.tool.ToolExecutionEligibilityChecker;
 
@@ -20,12 +28,45 @@ import org.springframework.ai.model.tool.ToolExecutionEligibilityChecker;
 public class ChatService {
 
     private final ChatClient chatChatClient;
+    private final ChatClient directChatClient;
     private final AppProperties appProperties;
     private final ChatMemory chatMemory;
+    private final QuestionRouter router;
 
     public ChatResponse chat(String prompt, String conversationId) {
         validate(prompt);
         val resolvedConversationId = resolveConversationId(conversationId);
+        val route = router.route(prompt, List.ofAll(chatMemory.get(resolvedConversationId)));
+        return route.filter(decision -> decision.status() == RouteStatus.BLOCKED)
+                .map(decision -> blockedResponse(prompt, resolvedConversationId, decision))
+                .getOrElse(() -> runAgent(prompt, resolvedConversationId, route));
+    }
+
+    private ChatResponse blockedResponse(String prompt, String conversationId, RouteDecision decision) {
+        log.info("Chat: blocked by intent gate ({}), answering directly without the graph", decision.intent());
+        val answer = Try.of(() -> askDirectly(prompt, conversationId))
+                .filter(text -> text != null && !text.isBlank())
+                .onFailure(e -> log.warn("Chat: direct answer failed, using canned reply ({})", e.toString()))
+                .getOrElse(() -> cannedReply(prompt, conversationId, decision));
+        return new ChatResponse(answer, null, null, false, 0, null, java.util.List.of(), java.util.List.of(), conversationId,
+                java.util.List.of(), decision);
+    }
+
+    /** Tool-free model call; its memory advisor stores both turn messages. */
+    private String askDirectly(String prompt, String conversationId) {
+        return OpenCodeGoHeaders.withSession(conversationId,
+                () -> directChatClient.prompt(prompt)
+                        .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, conversationId))
+                        .call().content());
+    }
+
+    private String cannedReply(String prompt, String conversationId, RouteDecision decision) {
+        val reply = RoutingReplies.forIntent(decision.intent());
+        chatMemory.add(conversationId, java.util.List.of(new UserMessage(prompt), new AssistantMessage(reply)));
+        return reply;
+    }
+
+    private ChatResponse runAgent(String prompt, String resolvedConversationId, Option<RouteDecision> route) {
         val trace = new ToolTrace();
         val maxRounds = appProperties.chat().maxToolCallRounds();
         val tracingManager = new TracingToolCallingManager(ToolCallingManager.builder().build(), trace);
@@ -49,7 +90,7 @@ public class ChatService {
         }
         log.info("Chat: completed with {} tool round(s){}", trace.roundCount(),
                 trace.maxRoundsExceeded() ? " (max rounds exceeded)" : "");
-        return buildResponse(answer, trace, resolvedConversationId);
+        return buildResponse(answer, trace, resolvedConversationId, route.getOrNull());
     }
 
     public boolean clearConversation(String conversationId) {
@@ -79,10 +120,10 @@ public class ChatService {
                 .getOrElse(() -> UUID.randomUUID().toString());
     }
 
-    private static ChatResponse buildResponse(String answer, ToolTrace trace, String conversationId) {
+    private static ChatResponse buildResponse(String answer, ToolTrace trace, String conversationId, RouteDecision route) {
         return new ChatResponse(answer, trace.lastCypher(), trace.lastRows(),
                 trace.lastTruncated(), trace.lastCount(), resolveError(trace), trace.skillsExecuted(),
-                trace.cypherQueries(), conversationId, trace.evidence());
+                trace.cypherQueries(), conversationId, trace.evidence(), route);
     }
 
     private static String resolveError(ToolTrace trace) {
