@@ -28,7 +28,7 @@ answer. Deterministic field invariants, golden cases, and all main code stay unt
 - No `RelevancyEvaluator` adoption.
 - No changes to `GoldenCases` / `GoldenCase` shape / `GoldenCasesTest`.
 - No changes to `assertInvariants` (write-Cypher, skills, rowCount, entity checks).
-- No changes under `src/main`.
+- No changes under `../../src/main`.
 - No new model config entries (fact-checker reuses `evalJudgeModel`).
 - No multi-sample / majority-vote judging.
 
@@ -44,7 +44,7 @@ answer. Deterministic field invariants, golden cases, and all main code stay unt
   responseContent)`; `EvaluationResponse(pass, score, feedback, metadata)`;
   `FactCheckingEvaluator.Builder.evaluationPrompt(String)`; pass = model answer
   `equalsIgnoreCase("yes")`; prompt must carry `{document}`/`{claim}`.
-- Original design: `docs/superpowers/specs/2026-08-20-chat-eval-design.md`.
+- Original design: `../superpowers/specs/2026-08-20-chat-eval-design.md`.
 
 ## Design
 
@@ -107,7 +107,7 @@ Custom prompt mitigates glm-5.2 chattiness (pass parses only an exact `yes`).
 
 ### 6. Docs
 - `2026-08-20-chat-eval-design.md`: add a superseded-in-part status note pointing to `SPEC_eval.md`.
-- `AGENTS.md`: chatEval bullet gains the fact-check stage and updated judge-side call count
+- `../../AGENTS.md`: chatEval bullet gains the fact-check stage and updated judge-side call count
   (~11/run: 6 judge + 5 fact-check).
 
 ## Edge Cases
@@ -158,6 +158,6 @@ None.
    reads metadata with unchanged branching.
 5. Test: add `assertFactCheck` (skip probe, truncation note, hard assert with feedback) after
    `assertJudge`.
-6. Docs: supersede note in `2026-08-20-chat-eval-design.md`; update the `AGENTS.md` chatEval bullet.
+6. Docs: supersede note in `2026-08-20-chat-eval-design.md`; update the `../../AGENTS.md` chatEval bullet.
 7. Verify: `./gradlew compileTestJava`, `./gradlew test`; full `./gradlew chatEval` remains a manual
    gate (needs Neo4j + APOC + LLM).

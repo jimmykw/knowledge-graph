@@ -30,7 +30,7 @@ entity list) and APOC-parameterized Cypher writes keep the graph clean and Cyphe
 
 ## Background
 The repository (`/Users/handysmurf/dev/github/jimmykw/knowledge-graph`) is greenfield:
-only `README.md` and an IntelliJ project exist; `git log` shows a single "first commit" on
+only `../../README.md` and an IntelliJ project exist; `git log` shows a single "first commit" on
 branch `user/jimmykw/dev`. There are no existing classes, build files, or configuration to
 preserve. The app is scaffolded from scratch.
 

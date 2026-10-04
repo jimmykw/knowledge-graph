@@ -9,15 +9,9 @@ import io.vavr.collection.List;
 import io.vavr.collection.Map;
 import io.vavr.control.Option;
 import io.vavr.control.Try;
-import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import net.jimmykw.knowledgegraph.config.AppProperties.Routing;
-import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
-import org.springframework.web.client.RestClient;
 
 /** Calls OpenRouter's System One endpoint ({@code POST {base-url}/systemone}) with one Choice question. */
-@Slf4j
 public class RestSystemOneClient implements SystemOneClient {
 
     private static final String GRAPH_HINT = " The listed documents, entity types and entities only sample the graph: it also covers the "
@@ -30,33 +24,18 @@ public class RestSystemOneClient implements SystemOneClient {
             + "off-topic or chitchat exchange must NOT change the class of a new message, which is judged on its own subject.";
     private static final java.util.Map<String, String> CRITERIA = criteria();
 
-    private final RestClient client;
-    private final String model;
+    private final SystemOneApi api;
     private final Supplier<GraphProfile> graphProfile;
 
-    public RestSystemOneClient(Routing routing, Supplier<GraphProfile> graphProfile) {
+    public RestSystemOneClient(SystemOneApi api, Supplier<GraphProfile> graphProfile) {
+        this.api = api;
         this.graphProfile = graphProfile;
-        val factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(routing.timeout());
-        factory.setReadTimeout(routing.timeout());
-        this.client = RestClient.builder()
-                .baseUrl(routing.baseUrl())
-                .requestFactory(factory)
-                .defaultHeader("Authorization", "Bearer " + routing.apiKey())
-                .build();
-        this.model = routing.model().contains("/") ? routing.model() : "typesafe/" + routing.model();
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Map<RouteIntent, Double> classify(String state) {
-        val body = java.util.Map.of("model", model, "state", state,
-                "questions", java.util.Map.of(QUESTION, java.util.Map.of("type", "choice",
-                        "instructions", instructions(), "criteria", CRITERIA)));
-        val response = client.post().uri("/systemone").contentType(MediaType.APPLICATION_JSON).body(body)
-                .retrieve().body(java.util.Map.class);
-        logCost(response);
-        return parse(response);
+        val question = java.util.Map.<String, Object>of("type", "choice", "instructions", instructions(), "criteria", CRITERIA);
+        return parse(api.ask(state, java.util.Map.of(QUESTION, question)));
     }
 
     private String instructions() {
@@ -74,10 +53,9 @@ public class RestSystemOneClient implements SystemOneClient {
     }
 
     @SuppressWarnings("unchecked")
-    static Map<RouteIntent, Double> parse(java.util.Map<String, Object> response) {
-        return Option.of(response)
-                .map(body -> body.get("answers")).filter(java.util.Map.class::isInstance)
-                .map(answers -> ((java.util.Map<String, Object>) answers).get(QUESTION)).filter(java.util.Map.class::isInstance)
+    static Map<RouteIntent, Double> parse(java.util.Map<String, Object> answers) {
+        return Option.of(answers)
+                .map(all -> all.get(QUESTION)).filter(java.util.Map.class::isInstance)
                 .map(answer -> ((java.util.Map<String, Object>) answer).get("probabilities")).filter(java.util.Map.class::isInstance)
                 .map(raw -> HashMap.ofAll((java.util.Map<String, Object>) raw))
                 .map(RestSystemOneClient::toIntents)
@@ -89,11 +67,6 @@ public class RestSystemOneClient implements SystemOneClient {
         return raw.map((name, probability) -> io.vavr.Tuple.of(
                         Try.of(() -> RouteIntent.valueOf(name)).getOrElseThrow(() -> new IllegalStateException("Unknown intent: " + name)),
                         ((Number) probability).doubleValue()));
-    }
-
-    private static void logCost(java.util.Map<?, ?> response) {
-        Option.of(response).map(body -> body.get("usage")).filter(java.util.Map.class::isInstance)
-                .forEach(usage -> log.debug("Routing: System One usage {}", usage));
     }
 
     private static java.util.Map<String, String> criteria() {

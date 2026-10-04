@@ -68,3 +68,16 @@ tasks.register<org.gradle.api.tasks.testing.Test>("routingEval") {
         showStandardStreams = true
     }
 }
+
+tasks.register<org.gradle.api.tasks.testing.Test>("judgeEval") {
+    group = "verification"
+    systemProperty("judge.eval", "true")
+    System.getProperty("judge.threshold")?.let { systemProperty("judge.threshold", it) }
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    filter { includeTestsMatching("*JudgeEvalTest") }
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = true
+    }
+}

@@ -41,7 +41,7 @@ public class ApiExceptionHandler {
         log.warn("Chat request failed: {}", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_CONTENT)
                 .body(new ChatResponse(null, ex.cypher(), null, false, 0, ex.error(), List.of(), List.of(), null,
-                        List.of(), null));
+                        List.of(), null, null));
     }
 
     @ExceptionHandler(InvalidFileException.class)
@@ -92,6 +92,6 @@ public class ApiExceptionHandler {
     }
 
     private static ChatResponse chatError(String message) {
-        return new ChatResponse(null, null, null, false, 0, message, List.of(), List.of(), null, List.of(), null);
+        return new ChatResponse(null, null, null, false, 0, message, List.of(), List.of(), null, List.of(), null, null);
     }
 }

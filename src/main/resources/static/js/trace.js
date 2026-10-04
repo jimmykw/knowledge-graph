@@ -56,7 +56,7 @@ document.addEventListener('alpine:init', () => {
 
     init() {
       if (!this.trace) {
-        this.trace = { cypherQueries: [], skillsExecuted: [], results: [], rowCount: 0, truncated: false, error: null, route: null };
+        this.trace = { cypherQueries: [], skillsExecuted: [], results: [], rowCount: 0, truncated: false, error: null, route: null, quality: null };
       }
     },
 
@@ -70,6 +70,34 @@ document.addEventListener('alpine:init', () => {
         return '\uD83D\uDCAC not from graph \u00B7 ' + route.intent + ' (' + pct + '%)';
       }
       return route.status === 'SKIPPED' ? 'routing skipped' : '';
+    },
+
+    qualityChip() {
+      const quality = this.trace.quality;
+      if (!quality) {
+        return '';
+      }
+      if (quality.status === 'SKIPPED') {
+        return 'quality check unavailable';
+      }
+      const pct = (value) => Math.round((value || 0) * 100) + '%';
+      return 'grounded ' + pct(quality.grounded) + ' \u00B7 relevant ' + pct(quality.relevance);
+    },
+
+    qualityIsLow() {
+      return !!this.trace.quality && this.trace.quality.status === 'LOW';
+    },
+
+    qualityTitle() {
+      const quality = this.trace.quality;
+      if (!quality || quality.status === 'SKIPPED') {
+        return 'The quality judge could not score this answer.';
+      }
+      const low = [];
+      if (quality.grounded < quality.minScore) { low.push('groundedness'); }
+      if (quality.relevance < quality.minScore) { low.push('relevance'); }
+      const note = quality.evidenceTruncated ? ' Some retrieved rows were not shown to the judge, so a low score may mean unverified.' : '';
+      return (quality.status === 'LOW' ? 'Low ' + (low.join(' and ') || 'score') + '.' : 'Scores look fine.') + note;
     },
 
     toggle() {

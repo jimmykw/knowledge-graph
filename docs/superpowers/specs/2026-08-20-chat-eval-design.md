@@ -1,7 +1,7 @@
 # Chat Q&A Eval Harness — Design
 
 **Date:** 2026-08-20
-**Status:** Approved (brainstorming complete) — judge layer superseded 2026-08-23 by `SPEC_eval.md` (Spring AI `Evaluator` API wrapper + added `FactCheckingEvaluator`). Golden cases, deterministic invariants, runnability, and non-determinism guidance below remain authoritative; only the `EvalJudge` wiring/scoring section has been refactored.
+**Status:** Approved (brainstorming complete) — judge layer superseded 2026-08-23 by `../../specs/SPEC_eval.md` (Spring AI `Evaluator` API wrapper + added `FactCheckingEvaluator`). Golden cases, deterministic invariants, runnability, and non-determinism guidance below remain authoritative; only the `EvalJudge` wiring/scoring section has been refactored.
 **Approach:** Real-model end-to-end eval of `POST /api/knowledge-graph/chat` against the assumed-loaded HistoryOfIBM graph, scored by deterministic field invariants **plus** an LLM-as-judge for answer groundedness/correctness.
 
 ## Goal

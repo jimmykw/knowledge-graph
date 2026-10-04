@@ -48,7 +48,7 @@ Graph conventions (Neo4jGraphWriter.java:49-55):
 
 ### 1. Dependency
 
-Add to `build.gradle.kts`:
+Add to `../../build.gradle.kts`:
 
 ```kotlin
 implementation(platform("org.springaicommunity:spring-ai-agent-utils-bom:0.10.0"))
@@ -130,7 +130,7 @@ SkillsTool skillsTool() {
 }
 ```
 
-Skills loaded from `src/main/resources/.claude/skills/` (packaged in the JAR).
+Skills loaded from `../../src/main/resources/.claude/skills` (packaged in the JAR).
 
 ### 5. Seven Skills
 
@@ -286,9 +286,9 @@ If the probe fails, the spec is blocked - fall back to a non-tool approach (inje
 
 ## Task Breakdown
 
-1. **Add dependency** - Add `spring-ai-agent-utils-bom` platform and `spring-ai-agent-utils` to `build.gradle.kts`. Verify JAR resolves.
+1. **Add dependency** - Add `spring-ai-agent-utils-bom` platform and `spring-ai-agent-utils` to `../../build.gradle.kts`. Verify JAR resolves.
 2. **Write tool-calling probe test** - Create `src/test/java/.../ToolCallingProbeTest.java` with a trivial `@Tool`. Run it. Verify glm-5.2 returns tool-call responses. **Block here if it fails.**
-3. **Create 7 SKILL.md files** - `entity-lookup`, `neighborhood-exploration`, `path-finding`, `source-attribution`, `graph-statistics`, `empty-result-recovery`, `multi-hop-reasoning` in `src/main/resources/.claude/skills/`.
+3. **Create 7 SKILL.md files** - `entity-lookup`, `neighborhood-exploration`, `path-finding`, `source-attribution`, `graph-statistics`, `empty-result-recovery`, `multi-hop-reasoning` in `../../src/main/resources/.claude/skills`.
 4. **Create `GraphTools` class** - `@Tool` methods: `getGraphSchema`, `runReadCypher` (with regex guard), `findEntityByName`, `getEntityNeighborhood`. Add `@Bean` in `AppConfig`.
 5. **Create `TracingToolCallingManager`** - Wraps default `ToolCallingManager`, records tool executions into `ToolTrace`.
 6. **Create `ToolTrace` record** - Mutable accumulator: list of tool calls (name, input, output, error), last Cypher execution details.

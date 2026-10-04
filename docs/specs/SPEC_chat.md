@@ -46,7 +46,7 @@ src/main/java/com/example/knowledgegraph/
   exception/GraphEmptyException.java     // → 422 (no :Schema node / zero labels)
   exception/InvalidPromptException.java  // → 400 (blank/over-long prompt)
 ```
-Modified existing files: `graph/Neo4jGraphWriter.java` (schema maintenance + `readSchema()`), `config/AppProperties.java` (add `chat`), `config/AppConfig.java` (wire chat beans), `api/ApiExceptionHandler.java` (422/400 handlers), `src/main/resources/application.yml` (new `app.chat.*`).
+Modified existing files: `graph/Neo4jGraphWriter.java` (schema maintenance + `readSchema()`), `config/AppProperties.java` (add `chat`), `config/AppConfig.java` (wire chat beans), `api/ApiExceptionHandler.java` (422/400 handlers), `../../src/main/resources/application.yml` (new `app.chat.*`).
 
 ### Configuration (`AppProperties`, `application.yml`)
 Add a nested chat config:

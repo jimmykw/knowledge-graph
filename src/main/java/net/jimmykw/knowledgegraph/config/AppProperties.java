@@ -5,7 +5,7 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app")
-public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models models, Routing routing) {
+public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models models, Routing routing, Judge judge) {
 
     public record Chat(int resultRowLimit, int maxPromptLength, int maxToolCallRounds, long queryTimeoutMs,
                         int historyWindow) {
@@ -42,6 +42,27 @@ public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models mod
             }
             if (model == null || model.isBlank()) {
                 model = "jev-1.13";
+            }
+        }
+    }
+
+    public record Judge(boolean enabled, double minScore, Duration timeout, String baseUrl, String apiKey, String model,
+                        int maxEvidenceChars) {
+        public Judge {
+            if (minScore <= 0) {
+                minScore = 0.7;
+            }
+            if (timeout == null) {
+                timeout = Duration.ofSeconds(3);
+            }
+            if (baseUrl == null || baseUrl.isBlank()) {
+                baseUrl = "https://openrouter.ai/api/v1";
+            }
+            if (model == null || model.isBlank()) {
+                model = "jev-1.13";
+            }
+            if (maxEvidenceChars <= 0) {
+                maxEvidenceChars = 8000;
             }
         }
     }
@@ -98,5 +119,6 @@ public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models mod
         }
         if (models == null) { models = new Models(null, null); }
         if (routing == null) { routing = new Routing(false, 0, null, null, null, null); }
+        if (judge == null) { judge = new Judge(false, 0, null, null, null, null, 0); }
     }
 }

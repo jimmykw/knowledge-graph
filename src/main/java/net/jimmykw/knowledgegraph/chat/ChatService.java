@@ -8,6 +8,9 @@ import io.vavr.control.Try;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
+import net.jimmykw.knowledgegraph.chat.judge.AnswerJudge;
+import net.jimmykw.knowledgegraph.chat.judge.AnswerQuality;
+import net.jimmykw.knowledgegraph.chat.judge.JudgeInput;
 import net.jimmykw.knowledgegraph.chat.routing.QuestionRouter;
 import net.jimmykw.knowledgegraph.chat.store.BlockedMessages;
 import net.jimmykw.knowledgegraph.chat.routing.RouteDecision;
@@ -31,6 +34,7 @@ public class ChatService {
     private final AppProperties appProperties;
     private final ChatMemory chatMemory;
     private final QuestionRouter router;
+    private final AnswerJudge judge;
 
     public ChatResponse chat(String prompt, String conversationId) {
         validate(prompt);
@@ -48,7 +52,7 @@ public class ChatService {
                 .onFailure(e -> log.warn("Chat: direct answer failed, using canned reply ({})", e.toString()))
                 .getOrElse(() -> cannedReply(prompt, conversationId, decision));
         return new ChatResponse(answer, null, null, false, 0, null, java.util.List.of(), java.util.List.of(), conversationId,
-                java.util.List.of(), decision);
+                java.util.List.of(), decision, null);
     }
 
     /** Tool-free model call over the stored history; the turn is stored flagged as blocked. */
@@ -76,6 +80,7 @@ public class ChatService {
     }
 
     private ChatResponse runAgent(String prompt, String resolvedConversationId, Option<RouteDecision> route) {
+        val history = List.ofAll(chatMemory.get(resolvedConversationId));
         val trace = new ToolTrace();
         val maxRounds = appProperties.chat().maxToolCallRounds();
         val tracingManager = new TracingToolCallingManager(ToolCallingManager.builder().build(), trace);
@@ -99,7 +104,16 @@ public class ChatService {
         }
         log.info("Chat: completed with {} tool round(s){}", trace.roundCount(),
                 trace.maxRoundsExceeded() ? " (max rounds exceeded)" : "");
-        return buildResponse(answer, trace, resolvedConversationId, route.getOrNull());
+        val quality = judgeAnswer(prompt, history, trace, answer);
+        return buildResponse(answer, trace, resolvedConversationId, route.getOrNull(), quality.getOrNull());
+    }
+
+    /** Advisory: any judge failure leaves the answer unscored and never fails the chat call. */
+    private Option<AnswerQuality> judgeAnswer(String prompt, List<org.springframework.ai.chat.messages.Message> history,
+                                              ToolTrace trace, String answer) {
+        return Try.of(() -> judge.judge(new JudgeInput(prompt, history, List.ofAll(trace.evidence()), answer)))
+                .onFailure(error -> log.warn("Chat: answer judge failed ({})", error.toString()))
+                .getOrElse(Option::none);
     }
 
     public boolean clearConversation(String conversationId) {
@@ -129,10 +143,11 @@ public class ChatService {
                 .getOrElse(() -> UUID.randomUUID().toString());
     }
 
-    private static ChatResponse buildResponse(String answer, ToolTrace trace, String conversationId, RouteDecision route) {
+    private static ChatResponse buildResponse(String answer, ToolTrace trace, String conversationId, RouteDecision route,
+                                         AnswerQuality quality) {
         return new ChatResponse(answer, trace.lastCypher(), trace.lastRows(),
                 trace.lastTruncated(), trace.lastCount(), resolveError(trace), trace.skillsExecuted(),
-                trace.cypherQueries(), conversationId, trace.evidence(), route);
+                trace.cypherQueries(), conversationId, trace.evidence(), route, quality);
     }
 
     private static String resolveError(ToolTrace trace) {

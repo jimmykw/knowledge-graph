@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import io.vavr.control.Option;
 import lombok.val;
+import net.jimmykw.knowledgegraph.chat.judge.NoOpAnswerJudge;
 import net.jimmykw.knowledgegraph.chat.routing.QuestionRouter;
 import net.jimmykw.knowledgegraph.chat.routing.RouteDecision;
 import net.jimmykw.knowledgegraph.chat.routing.RouteIntent;
@@ -40,7 +41,7 @@ class ChatServiceRoutingTest {
 
     private ChatService service(Option<RouteDecision> decision) {
         QuestionRouter router = (prompt, history) -> decision;
-        return new ChatService(client, direct, new AppProperties(0, 0, null, null, null), memory, router);
+        return new ChatService(client, direct, new AppProperties(0, 0, null, null, null, null), memory, router, new NoOpAnswerJudge());
     }
 
     @Test
@@ -48,7 +49,7 @@ class ChatServiceRoutingTest {
         val decision = new RouteDecision(RouteIntent.CHITCHAT, 0.0, RouteStatus.BLOCKED);
         val untouched = mock(ChatClient.class);
         QuestionRouter router = (prompt, history) -> Option.of(decision);
-        val service = new ChatService(untouched, direct, new AppProperties(0, 0, null, null, null), memory, router);
+        val service = new ChatService(untouched, direct, new AppProperties(0, 0, null, null, null, null), memory, router, new NoOpAnswerJudge());
         val response = service.chat("thanks!", "c1");
         assertThat(response.answer()).isEqualTo("direct answer");
         assertThat(response.route()).isEqualTo(decision);

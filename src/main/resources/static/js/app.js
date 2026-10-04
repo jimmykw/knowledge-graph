@@ -211,7 +211,8 @@ document.addEventListener('alpine:init', () => {
         rowCount: (body && body.rowCount) || 0,
         truncated: !!(body && body.truncated),
         error: (body && body.error) || null,
-        route: (body && body.route) || null
+        route: (body && body.route) || null,
+        quality: (body && body.quality) || null
       };
     },
 

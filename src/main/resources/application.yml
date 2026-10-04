@@ -16,6 +16,16 @@ app:
     base-url: https://openrouter.ai/api/v1
     api-key: ${OPENAI_API_KEY}
     model: jev-1.13   # sent as typesafe/jev-1.13; pinned, not jev-latest
+  judge:
+    # Off by default. When enabled, every agent answer sends the conversation history, the retrieved graph rows
+    # and the answer to OpenRouter's System One endpoint (TypeSafe Jev) to be scored. Advisory only.
+    enabled: true
+    min-score: 0.7
+    timeout: 3s
+    base-url: https://openrouter.ai/api/v1
+    api-key: ${OPENAI_API_KEY}
+    model: jev-1.13   # sent as typesafe/jev-1.13; pinned, not jev-latest
+    max-evidence-chars: 8000
   models:
     extract:
       # Active: OpenRouter (OpenAI-compatible) for faster, genuinely-parallel extraction.

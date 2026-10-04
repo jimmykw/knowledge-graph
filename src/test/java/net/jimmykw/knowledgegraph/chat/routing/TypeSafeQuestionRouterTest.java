@@ -67,8 +67,8 @@ class TypeSafeQuestionRouterTest {
 
     @Test
     void parsesSystemOneResponse() {
-        val response = java.util.Map.<String, Object>of("answers", java.util.Map.of("intent",
-                java.util.Map.of("probabilities", java.util.Map.of("GRAPH", 0.2, "OFF_TOPIC", 0.8))));
-        assertThat(RestSystemOneClient.parse(response).get(RouteIntent.OFF_TOPIC).get()).isEqualTo(0.8);
+        val answers = java.util.Map.<String, Object>of("intent",
+                java.util.Map.of("probabilities", java.util.Map.of("GRAPH", 0.2, "OFF_TOPIC", 0.8)));
+        assertThat(RestSystemOneClient.parse(answers).get(RouteIntent.OFF_TOPIC).get()).isEqualTo(0.8);
     }
 }

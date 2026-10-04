@@ -417,3 +417,20 @@ body {
   background: #1e3a8a;
   color: #ffffff;
 }
+
+/* Answer quality chip: fixed colors so contrast holds in light and dark themes. */
+.kg-quality-chip {
+  display: inline-block;
+  margin: 0 0.4rem 0.2rem 0;
+  padding: 0.15rem 0.6rem;
+  border-radius: 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.3;
+  background: #14532d;
+  color: #ffffff;
+}
+.kg-quality-chip.kg-quality-low {
+  background: #7c2d12;
+  color: #ffffff;
+}

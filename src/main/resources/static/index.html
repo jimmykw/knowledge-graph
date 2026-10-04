@@ -14,7 +14,7 @@
         href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css"
         integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH"
         crossorigin="anonymous">
-  <link rel="stylesheet" href="/css/app.css?v=readability-6">
+  <link rel="stylesheet" href="/css/app.css?v=quality-chip-7">
   <script defer
           src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"
           integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi"
@@ -89,6 +89,8 @@
                 <template x-if="message.trace">
                   <div x-data="tracePanel(message.trace)" class="kg-trace">
                     <span class="kg-route-badge" x-show="routeBadge()" x-text="routeBadge()"></span>
+                    <span class="kg-quality-chip" :class="{ 'kg-quality-low': qualityIsLow() }" x-show="qualityChip()"
+                          x-text="(qualityIsLow() ? '\u26A0 ' : '') + qualityChip()" :title="qualityTitle()"></span>
                     <button type="button" class="kg-trace-toggle" @click="toggle()">
                       <span x-text="summary()"></span>
                     </button>

@@ -117,7 +117,7 @@ public record ResolvedRelationship(long sourceId, long targetId, String type,
 
 Combined LLM-phase estimate: ~6× wall-time reduction, subject to provider rate limits (watch for 429s in `Pass N: chunk i/j failed` logs). `AppProperties` fallback defaults (AppProperties.java:29-33) are intentionally left at 1000/4 — only the deployed config changes.
 
-### 7. Docs (`AGENTS.md`)
+### 7. Docs (`../../AGENTS.md`)
 
 Architecture bullets 2–3 rewritten to describe the batched `UNWIND` design and once-per-pass `recordSchema`. The APOC-signature and no-string-interpolation conventions still apply verbatim.
 
@@ -169,5 +169,5 @@ Architecture bullets 2–3 rewritten to describe the batched `UNWIND` design and
 3. Rewrite Pass 1 write phase in `EntityExtractionService` (dedupe → batch write → counts/schema → index build) with `dedupeEntity` + `nodeId` helpers.
 4. Rewrite Pass 2 write phase in `RelationshipExtractionService` (resolve/dedupe → batch write → counts/schema) with `resolveRelationship` + `addResolved` + `relId` helpers.
 5. Update `application.yml`: `chunk-tokens: 3000`, `pool-size: 8`.
-6. Update `AGENTS.md` architecture bullets.
+6. Update `../../AGENTS.md` architecture bullets.
 7. Verify `./gradlew compileJava`; smoke-test with `procurement.pdf` (delete its `:Document {hash}` node first) and compare `LLM calls completed` vs `written to Neo4j` timings.

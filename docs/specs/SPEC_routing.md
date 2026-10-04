@@ -197,7 +197,7 @@ Declared explicitly in `AppConfig`: `QuestionRouter` returns `TypeSafeQuestionRo
 ## Security Considerations
 - **Data egress:** with routing enabled, the prompt and the full recent history (both roles, up to 20 messages,
   including assistant answers built from graph rows) go to a third-party hosted API. Hence off by default;
-  document this in `AGENTS.md` and the README.
+  document this in `../../AGENTS.md` and the README.
 - The OpenRouter key is read from the environment and never logged; prompt text is not logged at INFO. The
   existing key is reused, so it now also authorizes System One calls (same account billing and rate limits).
 - Jev is in beta; the data goes to OpenRouter and to the TypeSafe-hosted model behind it. Review both providers'
@@ -265,4 +265,4 @@ Declared explicitly in `AppConfig`: `QuestionRouter` returns `TypeSafeQuestionRo
    `ChatResponse` and fix all callers; `ChatServiceRoutingTest`.
 7. UI: `trace.js` default + `index.html` badge.
 8. `routingEval` Gradle task, labeled prompt set, and `RoutingEvalTest` (including golden prompts never blocked).
-9. Docs: `AGENTS.md` (flag, egress warning, eval command) and README; run the eval, tune `block-threshold`.
+9. Docs: `../../AGENTS.md` (flag, egress warning, eval command) and README; run the eval, tune `block-threshold`.

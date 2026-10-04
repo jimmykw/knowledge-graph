@@ -98,7 +98,7 @@ class RoutingEvalTest {
         assertThat(key).as("OPENAI_API_KEY (OpenRouter key) must be set").isNotBlank();
         val routing = new Routing(true, Double.parseDouble(System.getProperty("routing.threshold", "0.9")),
                 Duration.ofSeconds(10), null, key, null);
-        return new TypeSafeQuestionRouter(new RestSystemOneClient(routing, () -> new GraphProfile(List.of("HistoryOfIBM", "HistoryOfApple", "HisotryOfMicrosoft"),
+        return new TypeSafeQuestionRouter(new RestSystemOneClient(new RestSystemOneApi(routing.baseUrl(), routing.apiKey(), routing.model(), routing.timeout(), "Routing"), () -> new GraphProfile(List.of("HistoryOfIBM", "HistoryOfApple", "HisotryOfMicrosoft"),
                         List.of("Organization", "Person", "Technology", "Event", "Concept", "Location", "Product"),
                         List.of("IBM", "Apple Inc.", "Microsoft", "Steve Jobs", "Bill Gates", "iPhone", "Paul Allen", "Windows"))), routing.blockThreshold());
     }

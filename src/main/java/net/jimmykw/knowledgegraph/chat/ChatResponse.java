@@ -3,6 +3,7 @@ package net.jimmykw.knowledgegraph.chat;
 import java.util.List;
 import java.util.Map;
 
+import net.jimmykw.knowledgegraph.chat.judge.AnswerQuality;
 import net.jimmykw.knowledgegraph.chat.routing.RouteDecision;
 
 public record ChatResponse(
@@ -16,5 +17,6 @@ public record ChatResponse(
         List<String> cypherQueries,
         String conversationId,
         List<QueryEvidence> evidence,
-        RouteDecision route) {
+        RouteDecision route,
+        AnswerQuality quality) {
 }

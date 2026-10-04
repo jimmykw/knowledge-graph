@@ -11,10 +11,14 @@ import net.jimmykw.knowledgegraph.chat.ChatService;
 import net.jimmykw.knowledgegraph.chat.CypherExecutor;
 import net.jimmykw.knowledgegraph.chat.GraphTools;
 import net.jimmykw.knowledgegraph.chat.SchemaService;
+import net.jimmykw.knowledgegraph.chat.judge.AnswerJudge;
+import net.jimmykw.knowledgegraph.chat.judge.JevAnswerJudge;
+import net.jimmykw.knowledgegraph.chat.judge.NoOpAnswerJudge;
 import net.jimmykw.knowledgegraph.chat.routing.GraphCatalog;
 import net.jimmykw.knowledgegraph.chat.routing.GraphProfile;
 import net.jimmykw.knowledgegraph.chat.routing.NoOpQuestionRouter;
 import net.jimmykw.knowledgegraph.chat.routing.QuestionRouter;
+import net.jimmykw.knowledgegraph.chat.routing.RestSystemOneApi;
 import net.jimmykw.knowledgegraph.chat.routing.RestSystemOneClient;
 import net.jimmykw.knowledgegraph.chat.routing.TypeSafeQuestionRouter;
 import net.jimmykw.knowledgegraph.extract.EntityExtractionService;
@@ -76,8 +80,19 @@ public class AppConfig {
     QuestionRouter questionRouter(AppProperties appProperties, Neo4jGraphWriter writer) {
         val routing = appProperties.routing();
         return routing.enabled()
-                ? new TypeSafeQuestionRouter(new RestSystemOneClient(routing, warmed(new GraphCatalog(() -> graphProfile(writer)))), routing.blockThreshold())
+                ? new TypeSafeQuestionRouter(new RestSystemOneClient(routingApi(routing), warmed(new GraphCatalog(() -> graphProfile(writer)))), routing.blockThreshold())
                 : new NoOpQuestionRouter();
+    }
+
+    @Bean
+    AnswerJudge answerJudge(AppProperties appProperties) {
+        val judge = appProperties.judge();
+        val api = new RestSystemOneApi(judge.baseUrl(), judge.apiKey(), judge.model(), judge.timeout(), "Judge");
+        return judge.enabled() ? new JevAnswerJudge(api, judge.minScore(), judge.maxEvidenceChars()) : new NoOpAnswerJudge();
+    }
+
+    private static RestSystemOneApi routingApi(AppProperties.Routing routing) {
+        return new RestSystemOneApi(routing.baseUrl(), routing.apiKey(), routing.model(), routing.timeout(), "Routing");
     }
 
     private static GraphProfile graphProfile(Neo4jGraphWriter writer) {
@@ -92,7 +107,7 @@ public class AppConfig {
 
     @Bean
     ChatService chatService(ChatClient chatChatClient, ChatClient directChatClient, AppProperties appProperties, ChatMemory chatMemory,
-                            QuestionRouter questionRouter) {
-        return new ChatService(chatChatClient, directChatClient, appProperties, chatMemory, questionRouter);
+                            QuestionRouter questionRouter, AnswerJudge answerJudge) {
+        return new ChatService(chatChatClient, directChatClient, appProperties, chatMemory, questionRouter, answerJudge);
     }
 }
