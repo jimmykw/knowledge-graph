@@ -8,7 +8,7 @@ app:
     query-timeout-ms: 10000
     history-window: 20
   routing:
-    # Off by default. When enabled, the prompt AND recent conversation history (including assistant
+    # On in this file (the code treats a missing flag as off). When enabled, the prompt AND recent conversation history (including assistant
     # answers built from graph rows) are sent to OpenRouter's System One endpoint (TypeSafe Jev).
     enabled: true
     block-threshold: 0.9
@@ -17,7 +17,7 @@ app:
     api-key: ${OPENAI_API_KEY}
     model: jev-1.13   # sent as typesafe/jev-1.13; pinned, not jev-latest
   judge:
-    # Off by default. When enabled, every agent answer sends the conversation history, the retrieved graph rows
+    # On in this file (the code treats a missing flag as off). When enabled, every agent answer sends the conversation history, the retrieved graph rows
     # and the answer to OpenRouter's System One endpoint (TypeSafe Jev) to be scored. Advisory only.
     enabled: true
     min-score: 0.7

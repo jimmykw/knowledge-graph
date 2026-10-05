@@ -1,5 +1,7 @@
 # Spec: Knowledge Graph Chat (Text-to-Cypher Q&A)
 
+> **Historical spec.** Written before implementation and since drifted: the code lives in `net.jimmykw.knowledgegraph` (not `com.example`), the default `app.max-pages` is 100, models come from OpenRouter (`stealth/space-bunny-alpha`) rather than glm-5.2, and chat settings live in `application.yml`. Trust the code and `AGENTS.md` where they conflict.
+
 ## Summary
 Add a synchronous, single-turn `POST /api/knowledge-graph/chat` endpoint that takes a natural-language prompt, uses glm-5.2 to generate a **read-only Cypher query** against the existing knowledge graph, executes it, and synthesizes a natural-language answer from the results — returning the answer, the generated Cypher, and the raw result rows for transparency (mirroring Neo4j LLM Graph Builder's "Chat with Data" / graph mode). A `:Schema` node, maintained by the existing ingestion pipeline, supplies the live graph's labels and relationship types to the Cypher-generation prompt — resolving the free-form-labels problem without manual config. A companion `GET /api/knowledge-graph/schema` exposes the same schema.
 

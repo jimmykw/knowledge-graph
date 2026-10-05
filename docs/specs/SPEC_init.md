@@ -1,5 +1,7 @@
 # Spec: Spring AI PDF → Neo4j Knowledge Graph (glm-5.2)
 
+> **Historical spec.** Written before implementation and since drifted: the code lives in `net.jimmykw.knowledgegraph` (not `com.example`), the default `app.max-pages` is 100, models come from OpenRouter (`stealth/space-bunny-alpha`) rather than glm-5.2, and chat settings live in `application.yml`. Trust the code and `AGENTS.md` where they conflict.
+
 ## Summary
 A standalone Spring Boot + Spring AI application that accepts a PDF via a synchronous
 multipart HTTP endpoint, extracts text from it, and builds a free-form knowledge graph
