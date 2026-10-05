@@ -1,19 +1,24 @@
 package net.jimmykw.knowledgegraph.chat.judge;
 
 import java.util.List;
-import java.util.Map;
 
 import io.vavr.control.Option;
 import io.vavr.control.Try;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
-import net.jimmykw.knowledgegraph.chat.routing.SystemOneApi;
+import org.springaicommunity.typesafe.TypeSafeClient;
+import org.springaicommunity.typesafe.exception.TypeSafeApiException;
+import org.springaicommunity.typesafe.judge.JevJudge;
+import org.springaicommunity.typesafe.judge.JevJudgeInput;
+import org.springaicommunity.typesafe.judge.JevVerdict;
+import org.springaicommunity.typesafe.question.Score;
 import org.springframework.ai.chat.messages.Message;
 
 /**
- * Scores an agent answer with Jev: one attempt, advisory, fail-open. Both questions are ordinal {@code score} scales whose
- * {@code criteria} run worst to best; the answer's {@code score} is the expected level index, normalized here to 0..1.
+ * Judges an agent answer with a {@link JevJudge}: advisory and fail-open. Two ordinal {@code Score} criteria (groundedness, relevance) must
+ * both reach the top level; an inconclusive criterion counts as LOW, a criterion Jev could not answer or a failed call leaves the answer
+ * SKIPPED.
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -21,62 +26,64 @@ public class JevAnswerJudge implements AnswerJudge {
 
     static final String GROUNDED = "grounded";
     static final String RELEVANT = "relevant";
+    static final String CONVERSATION_FIELD = "conversation";
+    static final String NO_CONVERSATION = "(no earlier conversation)";
 
-    private static final double EPSILON = 1e-9;
-    private static final Map<String, Object> QUESTIONS = Map.of(
-            GROUNDED, scale("Rate how well the retrieved rows support the assistant's answer.",
-                    "The answer states facts that are missing from or contradicted by the rows, or states facts when no rows were retrieved",
-                    "Some claims are supported by the rows, others are not",
-                    "Every factual claim is supported by the rows, or the answer honestly says nothing was found"),
-            RELEVANT, scale("Rate how well the answer addresses the user's latest question, using earlier turns for context.",
-                    "The answer is about something other than the question",
-                    "The answer partly addresses the question",
-                    "The answer fully addresses the question, or honestly states that the requested information was not found"));
+    private static final int TOP_LEVEL = 2;
 
-    private final SystemOneApi api;
-    private final double minScore;
+    private final JevJudge judge;
     private final int maxEvidenceChars;
+
+    public static JevJudge buildJudge(TypeSafeClient client) {
+        return JevJudge.builder(client)
+                .score(GROUNDED, Score.of("Rate how well the retrieved rows in `supporting_context` support the assistant's answer in "
+                        + "`assistant_answer`.",
+                        "The answer states facts that are missing from or contradicted by the rows, or states facts when no rows were retrieved",
+                        "Some claims are supported by the rows, others are not",
+                        "Every factual claim is supported by the rows, or the answer honestly says nothing was found"), TOP_LEVEL)
+                .score(RELEVANT, Score.of("Rate how well `assistant_answer` addresses the user's latest question in `user_question`, using "
+                        + "the earlier turns in `conversation` for context.",
+                        "The answer is about something other than the question",
+                        "The answer partly addresses the question",
+                        "The answer fully addresses the question, or honestly states that the requested information was not found"), TOP_LEVEL)
+                .failOnInconclusive(true)
+                .build();
+    }
 
     @Override
     public Option<AnswerQuality> judge(JudgeInput input) {
         val evidence = EvidenceFormatter.format(input.evidence(), maxEvidenceChars);
-        val state = buildState(input, evidence);
-        val quality = Try.of(() -> api.ask(state, QUESTIONS))
-                .map(answers -> AnswerQuality.scored(level(answers, GROUNDED), level(answers, RELEVANT), minScore, evidence.truncated()))
-                .onSuccess(scored -> log.info("Judge: {} grounded={} relevance={}", scored.status(), scored.grounded(), scored.relevance()))
-                .onFailure(error -> log.warn("Judge: scoring failed, answer left unscored ({})", error.toString()))
+        val jevInput = toInput(input, evidence);
+        val quality = Try.of(() -> judge.judge(jevInput))
+                .map(verdict -> toQuality(verdict, evidence.truncated()))
+                .onSuccess(scored -> log.info("Judge: {}", scored.status()))
+                .onFailure(error -> log.warn("Judge: scoring failed, answer left unscored ({}{})", error.toString(), requestId(error)))
                 .getOrElse(AnswerQuality.skipped());
         return Option.of(quality);
     }
 
-    static String buildState(JudgeInput input, EvidenceFormatter.Formatted evidence) {
-        val transcript = input.history().map(message -> role(message) + ": " + message.getText()).mkString("\n");
-        val conversation = transcript.isEmpty() ? "" : "Conversation so far:\n" + transcript + "\n\n";
-        return conversation + "Question: " + input.question() + "\n\nRetrieved rows:\n" + evidence.text()
-                + "\n\nAnswer: " + Option.of(input.answer()).getOrElse("");
+    static JevJudgeInput toInput(JudgeInput input, EvidenceFormatter.Formatted evidence) {
+        return JevJudgeInput.builder()
+                .question(input.question())
+                .answer(Option.of(input.answer()).getOrElse(""))
+                .context(List.of(evidence.text()))
+                .field(CONVERSATION_FIELD, transcript(input.history()))
+                .build();
     }
 
-    private static String role(Message message) {
-        return message.getMessageType().name().toLowerCase();
-    }
-
-    /** Normalizes a System One score (expected level index 0..n-1) to 0..1; rejects shapes that are not a usable scale. */
-    @SuppressWarnings("unchecked")
-    static double level(Map<String, Object> answers, String name) {
-        val answer = Option.of(answers.get(name)).filter(Map.class::isInstance).map(raw -> (Map<String, Object>) raw)
-                .getOrElseThrow(() -> new IllegalStateException("Missing answer: " + name));
-        val levels = Option.of(answer.get("legend")).filter(Map.class::isInstance).map(raw -> ((Map<String, Object>) raw).size())
-                .filter(size -> size >= 2).getOrElseThrow(() -> new IllegalStateException("Answer has no usable scale: " + name));
-        val score = Option.of(answer.get("score")).filter(Number.class::isInstance).map(raw -> ((Number) raw).doubleValue())
-                .getOrElseThrow(() -> new IllegalStateException("Answer has no score: " + name));
-        val normalized = score / (levels - 1);
-        if (normalized < -EPSILON || normalized > 1 + EPSILON) {
-            throw new IllegalStateException("Score out of range for " + name + ": " + score);
+    static AnswerQuality toQuality(JevVerdict verdict, boolean evidenceTruncated) {
+        if (!verdict.errors().isEmpty()) {
+            return AnswerQuality.skipped();
         }
-        return Math.min(1.0, Math.max(0.0, normalized));
+        return verdict.passed() ? AnswerQuality.ok(evidenceTruncated) : AnswerQuality.low(verdict.feedback(), evidenceTruncated);
     }
 
-    private static Map<String, Object> scale(String instructions, String... levels) {
-        return Map.of("type", "score", "instructions", instructions, "criteria", List.of(levels));
+    private static String transcript(io.vavr.collection.List<Message> history) {
+        val text = history.map(message -> message.getMessageType().name().toLowerCase() + ": " + message.getText()).mkString("\n");
+        return text.isEmpty() ? NO_CONVERSATION : text;
+    }
+
+    private static String requestId(Throwable error) {
+        return error instanceof TypeSafeApiException api && api.requestId() != null ? ", requestId=" + api.requestId() : "";
     }
 }

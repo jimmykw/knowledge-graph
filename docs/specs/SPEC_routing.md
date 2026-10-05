@@ -1,5 +1,7 @@
 # Spec: Typed Intent Gate for Chat (Spring AI TypeSafe)
 
+> **Superseded in part.** The Jev client layer described below (`RestSystemOneApi`, `RestSystemOneClient`, `SystemOneApi`, the `app.routing` timeout/base-url/api-key/model keys, the router's own retry) was replaced by the spring-ai-typesafe library; see `SPEC_spring-ai-typesafe.md` for the current design. The goals, intents and fail-open behavior here still hold.
+
 ## Summary
 Add an optional, off-by-default **intent gate** in front of the chat agent. Before `ChatService.chat()` starts
 the tool loop, it sends the new prompt plus the conversation history to the TypeSafe **Jev** model

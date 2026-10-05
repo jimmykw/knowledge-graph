@@ -28,39 +28,16 @@ public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models mod
         }
     }
 
-    public record Routing(boolean enabled, double blockThreshold, Duration timeout, String baseUrl, String apiKey,
-                          String model) {
+    public record Routing(boolean enabled, double blockThreshold) {
         public Routing {
             if (blockThreshold <= 0) {
                 blockThreshold = 0.9;
             }
-            if (timeout == null) {
-                timeout = Duration.ofSeconds(5);
-            }
-            if (baseUrl == null || baseUrl.isBlank()) {
-                baseUrl = "https://openrouter.ai/api/v1";
-            }
-            if (model == null || model.isBlank()) {
-                model = "jev-1.13";
-            }
         }
     }
 
-    public record Judge(boolean enabled, double minScore, Duration timeout, String baseUrl, String apiKey, String model,
-                        int maxEvidenceChars) {
+    public record Judge(boolean enabled, int maxEvidenceChars) {
         public Judge {
-            if (minScore <= 0) {
-                minScore = 0.7;
-            }
-            if (timeout == null) {
-                timeout = Duration.ofSeconds(3);
-            }
-            if (baseUrl == null || baseUrl.isBlank()) {
-                baseUrl = "https://openrouter.ai/api/v1";
-            }
-            if (model == null || model.isBlank()) {
-                model = "jev-1.13";
-            }
             if (maxEvidenceChars <= 0) {
                 maxEvidenceChars = 8000;
             }
@@ -118,7 +95,7 @@ public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models mod
             chat = new Chat(0, 0, 0, 0L, 0);
         }
         if (models == null) { models = new Models(null, null); }
-        if (routing == null) { routing = new Routing(false, 0, null, null, null, null); }
-        if (judge == null) { judge = new Judge(false, 0, null, null, null, null, 0); }
+        if (routing == null) { routing = new Routing(false, 0); }
+        if (judge == null) { judge = new Judge(false, 0); }
     }
 }

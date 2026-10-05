@@ -53,10 +53,11 @@ document.addEventListener('alpine:init', () => {
   Alpine.data('tracePanel', (trace) => ({
     trace: trace,
     open: false,
+    picked: null,
 
     init() {
       if (!this.trace) {
-        this.trace = { cypherQueries: [], skillsExecuted: [], results: [], rowCount: 0, truncated: false, error: null, route: null, quality: null };
+        this.trace = { cypherQueries: [], skillsExecuted: [], results: [], evidence: [], rowCount: 0, truncated: false, error: null, route: null, quality: null };
       }
     },
 
@@ -80,8 +81,7 @@ document.addEventListener('alpine:init', () => {
       if (quality.status === 'SKIPPED') {
         return 'quality check unavailable';
       }
-      const pct = (value) => Math.round((value || 0) * 100) + '%';
-      return 'grounded ' + pct(quality.grounded) + ' \u00B7 relevant ' + pct(quality.relevance);
+      return quality.status === 'LOW' ? 'quality low' : 'quality checked';
     },
 
     qualityIsLow() {
@@ -93,21 +93,93 @@ document.addEventListener('alpine:init', () => {
       if (!quality || quality.status === 'SKIPPED') {
         return 'The quality judge could not score this answer.';
       }
-      const low = [];
-      if (quality.grounded < quality.minScore) { low.push('groundedness'); }
-      if (quality.relevance < quality.minScore) { low.push('relevance'); }
-      const note = quality.evidenceTruncated ? ' Some retrieved rows were not shown to the judge, so a low score may mean unverified.' : '';
-      return (quality.status === 'LOW' ? 'Low ' + (low.join(' and ') || 'score') + '.' : 'Scores look fine.') + note;
+      const note = quality.evidenceTruncated ? ' Some retrieved rows were not shown to the judge, so a low rating may mean unverified.' : '';
+      const detail = quality.status === 'LOW' ? (quality.feedback || 'The judge rated this answer low.') : 'The judge found the answer grounded and relevant.';
+      return detail + note;
     },
 
     toggle() {
       this.open = !this.open;
     },
 
+    evidenceList() {
+      return this.trace.evidence || [];
+    },
+
+    /** Every Cypher query the agent ran; older responses without evidence fall back to the query strings. */
+    queryList() {
+      const evidence = this.evidenceList();
+      return evidence.length ? evidence.map((entry) => entry.cypher || '') : (this.trace.cypherQueries || []);
+    },
+
+    /** Rows across all queries (the response's rowCount only describes the last query). */
+    totalRows() {
+      const evidence = this.evidenceList();
+      return evidence.length ? evidence.reduce((sum, entry) => sum + (entry.count || 0), 0) : (this.trace.rowCount || 0);
+    },
+
+    queryMeta(index) {
+      const entry = this.evidenceList()[index];
+      if (!entry) {
+        return '';
+      }
+      if (entry.error) {
+        return 'error: ' + entry.error;
+      }
+      const count = entry.count || 0;
+      return count + (count === 1 ? ' row' : ' rows') + (entry.truncated ? ' \u00B7 server-truncated' : '');
+    },
+
+    queryMetaEmpty(index) {
+      const entry = this.evidenceList()[index];
+      return !!entry && !entry.error && !(entry.count > 0);
+    },
+
+    /** The query whose rows are shown: the picked one, else the query with the most rows (the later one on a tie). */
+    shownIndex() {
+      const evidence = this.evidenceList();
+      if (!evidence.length) {
+        return -1;
+      }
+      if (this.picked !== null && this.picked < evidence.length) {
+        return this.picked;
+      }
+      let best = evidence.length - 1;
+      for (let index = evidence.length - 1; index >= 0; index--) {
+        if ((evidence[index].count || 0) > (evidence[best].count || 0)) {
+          best = index;
+        }
+      }
+      return best;
+    },
+
+    queriesWithRows() {
+      return this.evidenceList().map((entry, index) => ({ index: index, count: entry.count || 0 })).filter((item) => item.count > 0);
+    },
+
+    pick(index) {
+      this.picked = index;
+    },
+
+    shownRows() {
+      const index = this.shownIndex();
+      return index < 0 ? (this.trace.results || []) : (this.evidenceList()[index].rows || []);
+    },
+
+    shownCount() {
+      const index = this.shownIndex();
+      return index < 0 ? (this.trace.rowCount || 0) : (this.evidenceList()[index].count || 0);
+    },
+
+    shownTruncated() {
+      const index = this.shownIndex();
+      return index < 0 ? !!this.trace.truncated : !!this.evidenceList()[index].truncated;
+    },
+
     summary() {
       const rounds = (this.trace.skillsExecuted || []).length;
-      const queries = (this.trace.cypherQueries || []).length;
-      const rows = this.trace.rowCount || 0;
+      const queries = this.queryList().length;
+      const rows = this.totalRows();
       const roundWord = rounds === 1 ? 'round' : 'rounds';
       const rowWord = rows === 1 ? 'row' : 'rows';
       let text = '\uD83D\uDD27 ' + rounds + ' tool ' + roundWord
@@ -120,7 +192,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     cappedRows() {
-      return (this.trace.results || []).slice(0, 50);
+      return this.shownRows().slice(0, 50);
     },
 
     columnList() {

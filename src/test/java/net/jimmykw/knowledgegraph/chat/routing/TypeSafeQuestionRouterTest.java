@@ -1,6 +1,7 @@
 package net.jimmykw.knowledgegraph.chat.routing;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -8,11 +9,9 @@ import io.vavr.collection.HashMap;
 import io.vavr.collection.List;
 import lombok.val;
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.typesafe.exception.TypeSafeApiTimeoutException;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.ResourceAccessException;
 
 class TypeSafeQuestionRouterTest {
 
@@ -20,39 +19,28 @@ class TypeSafeQuestionRouterTest {
             HashMap.of(RouteIntent.GRAPH, 0.0, RouteIntent.CHITCHAT, 1.0);
 
     @Test
-    void retriesOnceOnTransportErrorThenSucceeds() {
-        val calls = new AtomicInteger();
-        val router = new TypeSafeQuestionRouter(state -> {
-            if (calls.incrementAndGet() == 1) {
-                throw new ResourceAccessException("timeout");
-            }
-            return CHITCHAT;
-        }, 0.9);
+    void blocksWhenNonGraphMassReachesTheThreshold() {
+        val router = new TypeSafeQuestionRouter(state -> CHITCHAT, 0.9);
         val decision = router.route("thanks", List.empty()).get();
-        assertThat(calls).hasValue(2);
         assertThat(decision.status()).isEqualTo(RouteStatus.BLOCKED);
+        assertThat(decision.intent()).isEqualTo(RouteIntent.CHITCHAT);
     }
 
     @Test
-    void doesNotRetryOnAuthError() {
-        val calls = new AtomicInteger();
-        val router = new TypeSafeQuestionRouter(state -> {
-            calls.incrementAndGet();
-            throw HttpClientErrorException.create(HttpStatus.UNAUTHORIZED, "no", null, null, null);
-        }, 0.9);
-        assertThat(router.route("hi", List.empty()).get().status()).isEqualTo(RouteStatus.SKIPPED);
-        assertThat(calls).hasValue(1);
+    void routesWhenGraphMassIsAboveTheComplement() {
+        val router = new TypeSafeQuestionRouter(state -> HashMap.of(RouteIntent.GRAPH, 0.5, RouteIntent.OFF_TOPIC, 0.5), 0.9);
+        assertThat(router.route("hard disks", List.empty()).get().status()).isEqualTo(RouteStatus.ROUTED);
     }
 
     @Test
-    void doubleFailureIsSkipped() {
+    void classifierFailureIsSkippedWithoutAnyRouterRetry() {
         val calls = new AtomicInteger();
         val router = new TypeSafeQuestionRouter(state -> {
             calls.incrementAndGet();
-            throw new ResourceAccessException("down");
+            throw new TypeSafeApiTimeoutException("timed out", java.time.Duration.ofSeconds(3), null);
         }, 0.9);
         val decision = router.route("hi", List.empty()).get();
-        assertThat(calls).hasValue(2);
+        assertThat(calls).hasValue(1);
         assertThat(decision.status()).isEqualTo(RouteStatus.SKIPPED);
         assertThat(decision.intent()).isNull();
     }
@@ -66,9 +54,14 @@ class TypeSafeQuestionRouterTest {
     }
 
     @Test
-    void parsesSystemOneResponse() {
-        val answers = java.util.Map.<String, Object>of("intent",
-                java.util.Map.of("probabilities", java.util.Map.of("GRAPH", 0.2, "OFF_TOPIC", 0.8)));
-        assertThat(RestSystemOneClient.parse(answers).get(RouteIntent.OFF_TOPIC).get()).isEqualTo(0.8);
+    void mapsProbabilityNamesToIntents() {
+        val intents = TypeSafeIntentClassifier.toIntents(HashMap.of("GRAPH", 0.2, "OFF_TOPIC", 0.8));
+        assertThat(intents.get(RouteIntent.OFF_TOPIC).get()).isEqualTo(0.8);
+    }
+
+    @Test
+    void unknownOrMissingIntentsAreRejected() {
+        assertThatThrownBy(() -> TypeSafeIntentClassifier.toIntents(HashMap.of("WEATHER", 1.0))).hasMessageContaining("Unknown intent");
+        assertThatThrownBy(() -> TypeSafeIntentClassifier.toIntents(HashMap.empty())).hasMessageContaining("no usable intent");
     }
 }

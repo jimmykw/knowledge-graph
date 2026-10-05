@@ -1,23 +1,22 @@
 package net.jimmykw.knowledgegraph.chat.judge;
 
-import lombok.val;
-
 /**
- * Advisory scores for one agent answer, each 0.0 (worst) to 1.0 (best).
+ * Advisory verdict for one agent answer.
  *
- * @param grounded         how well the retrieved rows support the answer; null when SKIPPED
- * @param relevance        how well the answer addresses the question; null when SKIPPED
- * @param evidenceTruncated true when some retrieved rows were not shown to the judge, so a low score may mean "unverified"
+ * @param feedback          why the answer is LOW, as rendered by the judge; null for OK and SKIPPED
+ * @param evidenceTruncated true when some retrieved rows were not shown to the judge, so a low verdict may mean "unverified"
  */
-public record AnswerQuality(Double grounded, Double relevance, QualityStatus status, boolean evidenceTruncated, double minScore) {
+public record AnswerQuality(QualityStatus status, String feedback, boolean evidenceTruncated) {
 
     public static AnswerQuality skipped() {
-        return new AnswerQuality(null, null, QualityStatus.SKIPPED, false, 0.0);
+        return new AnswerQuality(QualityStatus.SKIPPED, null, false);
     }
 
-    /** LOW when either dimension is below {@code minScore}; a score exactly at the threshold is OK. */
-    public static AnswerQuality scored(double grounded, double relevance, double minScore, boolean evidenceTruncated) {
-        val low = grounded < minScore || relevance < minScore;
-        return new AnswerQuality(grounded, relevance, low ? QualityStatus.LOW : QualityStatus.OK, evidenceTruncated, minScore);
+    public static AnswerQuality ok(boolean evidenceTruncated) {
+        return new AnswerQuality(QualityStatus.OK, null, evidenceTruncated);
+    }
+
+    public static AnswerQuality low(String feedback, boolean evidenceTruncated) {
+        return new AnswerQuality(QualityStatus.LOW, feedback, evidenceTruncated);
     }
 }

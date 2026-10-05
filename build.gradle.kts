@@ -18,8 +18,9 @@ repositories {
 
 dependencies {
     implementation(platform("org.springframework.boot:spring-boot-dependencies:4.0.7"))
-    implementation(platform("org.springframework.ai:spring-ai-bom:2.0.0"))
+    implementation(platform("org.springframework.ai:spring-ai-bom:2.0.1"))
     implementation(platform("org.springaicommunity:spring-ai-agent-utils-bom:0.10.0"))
+    implementation(platform("org.springaicommunity:typesafe-bom:0.4.0"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-jdbc")
@@ -28,12 +29,15 @@ dependencies {
     implementation("org.neo4j.driver:neo4j-java-driver")
     runtimeOnly("com.h2database:h2")
     implementation("io.vavr:vavr:1.0.1")
+    implementation("org.springaicommunity:spring-ai-starter-typesafe")
+    implementation("org.springaicommunity:typesafe-spring-ai")
     implementation("org.springaicommunity:spring-ai-agent-utils")
 
     compileOnly("org.projectlombok:lombok:1.18.46")
     annotationProcessor("org.projectlombok:lombok:1.18.46")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.wiremock:wiremock-standalone:3.13.2")
     testCompileOnly("org.projectlombok:lombok:1.18.46")
     testAnnotationProcessor("org.projectlombok:lombok:1.18.46")
 }
@@ -72,7 +76,6 @@ tasks.register<org.gradle.api.tasks.testing.Test>("routingEval") {
 tasks.register<org.gradle.api.tasks.testing.Test>("judgeEval") {
     group = "verification"
     systemProperty("judge.eval", "true")
-    System.getProperty("judge.threshold")?.let { systemProperty("judge.threshold", it) }
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
     filter { includeTestsMatching("*JudgeEvalTest") }

@@ -183,6 +183,8 @@ body {
   margin: 0.5rem 0;
   padding: 0.6rem;
   border-radius: 0.4rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   overflow-x: auto;
   /* Explicit colors: Pico's code colors are too dim on the card background, especially in dark mode. */
   background: rgba(127,127,127,0.18);
@@ -205,7 +207,9 @@ body {
   color: var(--pico-color, inherit);
   font-weight: 600;
 }
-.kg-md table { display: block; overflow-x: auto; }
+.kg-md table { display: table; width: 100%; table-layout: auto; }
+.kg-md th,
+.kg-md td { white-space: normal; overflow-wrap: anywhere; vertical-align: top; }
 
 /* ---------- System messages ---------- */
 .kg-system {
@@ -291,6 +295,8 @@ body {
   margin: 0;
   padding: 0.6rem 4.5rem 0.6rem 0.6rem;
   border-radius: 0.4rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   overflow-x: auto;
   font-size: 0.8rem;
   /* Fallback in case the highlight.js theme CSS does not load; matches github-dark. */
@@ -319,7 +325,8 @@ body {
   border: 1px solid rgba(127,127,127,0.4);
   color: var(--pico-color, inherit);
   background: transparent;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
   vertical-align: top;
   text-align: left;
 }
@@ -329,7 +336,8 @@ body {
 }
 .kg-json {
   display: block;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.75rem;
   max-height: 8rem;
@@ -434,3 +442,23 @@ body {
   background: #7c2d12;
   color: #ffffff;
 }
+
+/* Per-query row counts and the tabs that switch the result table between queries. */
+.kg-query-meta {
+  margin: 0.15rem 0 0.4rem;
+  font-size: 0.78rem;
+  color: var(--bs-secondary-color, #6c757d);
+}
+.kg-query-meta.kg-query-empty { font-style: italic; }
+.kg-row-tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.25rem 0 0.5rem; }
+.kg-row-tab {
+  padding: 0.1rem 0.6rem;
+  border: 1px solid var(--bs-border-color, #ced4da);
+  border-radius: 0.8rem;
+  background: transparent;
+  color: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.kg-row-tab-active { background: #1e3a8a; border-color: #1e3a8a; color: #ffffff; }
+.kg-row-tab:focus-visible { outline: 2px solid #1e3a8a; outline-offset: 2px; }

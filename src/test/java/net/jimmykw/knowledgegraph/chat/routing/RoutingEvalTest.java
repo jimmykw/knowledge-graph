@@ -8,15 +8,16 @@ import io.vavr.collection.List;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import net.jimmykw.knowledgegraph.chat.eval.GoldenCases;
-import net.jimmykw.knowledgegraph.config.AppProperties.Routing;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.springaicommunity.typesafe.RetryPolicy;
+import org.springaicommunity.typesafe.TypeSafeClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 
 /**
- * Real-API eval of the intent gate (OpenRouter System One, jev-1.13). Needs OPENAI_API_KEY (the OpenRouter key).
+ * Real-API eval of the intent gate (OpenRouter System One, typesafe/jev-1.13 through the spring-ai-typesafe client). Needs OPENAI_API_KEY (the OpenRouter key).
  * Hard gate: no graph question is ever BLOCKED. Reported: recall of blocks on non-graph prompts, false-block count.
  */
 @Slf4j
@@ -96,10 +97,12 @@ class RoutingEvalTest {
     private static QuestionRouter router() {
         val key = System.getenv("OPENAI_API_KEY");
         assertThat(key).as("OPENAI_API_KEY (OpenRouter key) must be set").isNotBlank();
-        val routing = new Routing(true, Double.parseDouble(System.getProperty("routing.threshold", "0.9")),
-                Duration.ofSeconds(10), null, key, null);
-        return new TypeSafeQuestionRouter(new RestSystemOneClient(new RestSystemOneApi(routing.baseUrl(), routing.apiKey(), routing.model(), routing.timeout(), "Routing"), () -> new GraphProfile(List.of("HistoryOfIBM", "HistoryOfApple", "HisotryOfMicrosoft"),
-                        List.of("Organization", "Person", "Technology", "Event", "Concept", "Location", "Product"),
-                        List.of("IBM", "Apple Inc.", "Microsoft", "Steve Jobs", "Bill Gates", "iPhone", "Paul Allen", "Windows"))), routing.blockThreshold());
+        val client = TypeSafeClient.builder().baseUrl("https://openrouter.ai/api").apiKey(key).defaultModel("typesafe/jev-1.13")
+                .timeout(Duration.ofSeconds(10)).retryPolicy(RetryPolicy.defaults()).build();
+        val profile = new GraphProfile(List.of("HistoryOfIBM", "HistoryOfApple", "HisotryOfMicrosoft"),
+                List.of("Organization", "Person", "Technology", "Event", "Concept", "Location", "Product"),
+                List.of("IBM", "Apple Inc.", "Microsoft", "Steve Jobs", "Bill Gates", "iPhone", "Paul Allen", "Windows"));
+        return new TypeSafeQuestionRouter(new TypeSafeIntentClassifier(client, () -> profile),
+                Double.parseDouble(System.getProperty("routing.threshold", "0.9")));
     }
 }

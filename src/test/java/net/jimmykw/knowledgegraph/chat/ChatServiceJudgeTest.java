@@ -53,7 +53,7 @@ class ChatServiceJudgeTest {
     void agentTurnCarriesQualityAndSeesHistoryBeforeTheTurn() {
         memory.add("c1", java.util.List.of(new UserMessage("earlier q"), new AssistantMessage("earlier a")));
         val seen = new AtomicReference<JudgeInput>();
-        val quality = AnswerQuality.scored(0.9, 0.8, 0.7, false);
+        val quality = AnswerQuality.ok(false);
         val response = service(Option.none(), input -> {
             seen.set(input);
             return Option.of(quality);

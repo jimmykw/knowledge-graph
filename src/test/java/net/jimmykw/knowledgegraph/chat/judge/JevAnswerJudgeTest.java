@@ -1,31 +1,26 @@
 package net.jimmykw.knowledgegraph.chat.judge;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 import io.vavr.collection.List;
 import lombok.val;
 import net.jimmykw.knowledgegraph.chat.QueryEvidence;
-import net.jimmykw.knowledgegraph.chat.routing.SystemOneApi;
 import org.junit.jupiter.api.Test;
+import org.springaicommunity.typesafe.exception.TypeSafeApiConnectionException;
+import org.springaicommunity.typesafe.judge.JevFinding;
+import org.springaicommunity.typesafe.judge.JevJudge;
+import org.springaicommunity.typesafe.judge.JevJudgeInput;
+import org.springaicommunity.typesafe.judge.JevVerdict;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.web.client.ResourceAccessException;
 
+/** Mapping and input-building tests with a mocked JevJudge; the HTTP behavior is covered in TypeSafeWireMockTest. */
 class JevAnswerJudgeTest {
-
-    private static Map<String, Object> scale(double score, int levels) {
-        val legend = new java.util.LinkedHashMap<String, Object>();
-        java.util.stream.IntStream.range(0, levels).forEach(index -> legend.put(String.valueOf(index), "level " + index));
-        return Map.of("type", "score", "score", score, "legend", legend);
-    }
-
-    private static Map<String, Object> answers(double grounded, double relevant) {
-        return Map.of("grounded", scale(grounded, 3), "relevant", scale(relevant, 3));
-    }
 
     private static JudgeInput input() {
         val rows = List.of(new QueryEvidence("MATCH (n) RETURN n.name", java.util.List.of(Map.of("n.name", "FORTRAN")), 1, false, null));
@@ -33,86 +28,69 @@ class JevAnswerJudgeTest {
                 "IBM created FORTRAN.");
     }
 
-    private static JevAnswerJudge judge(SystemOneApi api) {
-        return new JevAnswerJudge(api, 0.7, 8000);
+    private static JevFinding finding(JevFinding.Outcome outcome) {
+        return new JevFinding(null, null, outcome, "detail");
+    }
+
+    private static JevAnswerJudge judgeReturning(JevVerdict verdict) {
+        val jev = mock(JevJudge.class);
+        when(jev.judge(any(JevJudgeInput.class))).thenReturn(verdict);
+        return new JevAnswerJudge(jev, 8000);
     }
 
     @Test
-    void normalizesScoresToZeroToOneAndAppliesThreshold() {
-        val quality = judge((state, questions) -> answers(2.0, 1.0)).judge(input()).get();
-        assertThat(quality.grounded()).isEqualTo(1.0);
-        assertThat(quality.relevance()).isEqualTo(0.5);
+    void passedVerdictIsOk() {
+        val quality = judgeReturning(new JevVerdict(true, java.util.List.of(), null, "")).judge(input()).get();
+        assertThat(quality.status()).isEqualTo(QualityStatus.OK);
+        assertThat(quality.feedback()).isNull();
+    }
+
+    @Test
+    void failedVerdictIsLowWithTheLibrariesFeedback() {
+        val verdict = new JevVerdict(false, java.util.List.of(finding(JevFinding.Outcome.FAILED)), null, "- grounded: rated low");
+        val quality = judgeReturning(verdict).judge(input()).get();
         assertThat(quality.status()).isEqualTo(QualityStatus.LOW);
+        assertThat(quality.feedback()).isEqualTo("- grounded: rated low");
     }
 
     @Test
-    void highScoresAreOk() {
-        assertThat(judge((state, questions) -> answers(1.9, 2.0)).judge(input()).get().status()).isEqualTo(QualityStatus.OK);
+    void errorFindingIsSkippedEvenWhenTheVerdictPassed() {
+        val verdict = new JevVerdict(true, java.util.List.of(finding(JevFinding.Outcome.ERROR)), null, "");
+        assertThat(judgeReturning(verdict).judge(input()).get().status()).isEqualTo(QualityStatus.SKIPPED);
     }
 
     @Test
-    void stateHoldsHistoryQuestionRowsAndAnswerInDocumentedLayout() {
-        val captured = new AtomicReference<String>();
-        val questionNames = new AtomicReference<java.util.Set<String>>();
-        judge((state, questions) -> {
-            captured.set(state);
-            questionNames.set(questions.keySet());
-            return answers(2, 2);
-        }).judge(input());
-        assertThat(captured.get()).isEqualTo("Conversation so far:\nuser: hi\nassistant: hello\n\nQuestion: What did IBM create?\n\n"
-                + "Retrieved rows:\n[query 1] MATCH (n) RETURN n.name\n{\"n.name\":\"FORTRAN\"}\n\nAnswer: IBM created FORTRAN.");
-        assertThat(questionNames.get()).containsExactlyInAnyOrder("grounded", "relevant");
+    void failedCallIsSkippedWithoutRetry() {
+        val jev = mock(JevJudge.class);
+        when(jev.judge(any(JevJudgeInput.class))).thenThrow(new TypeSafeApiConnectionException("down", null));
+        assertThat(new JevAnswerJudge(jev, 8000).judge(input()).get().status()).isEqualTo(QualityStatus.SKIPPED);
+        org.mockito.Mockito.verify(jev, org.mockito.Mockito.times(1)).judge(any(JevJudgeInput.class));
     }
 
     @Test
-    void emptyEvidenceAndHistoryRenderNoRowsStatement() {
-        val captured = new AtomicReference<String>();
-        judge((state, questions) -> {
-            captured.set(state);
-            return answers(2, 2);
-        }).judge(new JudgeInput("q", List.empty(), List.empty(), "a"));
-        assertThat(captured.get()).isEqualTo("Question: q\n\nRetrieved rows:\n(no rows were retrieved)\n\nAnswer: a");
+    void inputCarriesQuestionAnswerRowsAndConversationInTheLibrariesFields() {
+        val evidence = EvidenceFormatter.format(input().evidence(), 8000);
+        val jevInput = JevAnswerJudge.toInput(input(), evidence);
+        assertThat(jevInput.question()).isEqualTo("What did IBM create?");
+        assertThat(jevInput.answer()).isEqualTo("IBM created FORTRAN.");
+        assertThat(jevInput.context()).containsExactly("[query 1] MATCH (n) RETURN n.name\n{\"n.name\":\"FORTRAN\"}");
+        assertThat(jevInput.field(JevAnswerJudge.CONVERSATION_FIELD, String.class)).isEqualTo("user: hi\nassistant: hello");
     }
 
     @Test
-    void failuresAreSkippedWithoutRetry() {
-        val calls = new AtomicInteger();
-        val quality = judge((state, questions) -> {
-            calls.incrementAndGet();
-            throw new ResourceAccessException("timeout");
-        }).judge(input()).get();
-        assertThat(calls).hasValue(1);
-        assertThat(quality.status()).isEqualTo(QualityStatus.SKIPPED);
-    }
-
-    @Test
-    void missingOrMalformedAnswersAreSkipped() {
-        assertThat(judge((state, questions) -> Map.of("grounded", scale(2, 3))).judge(input()).get().status())
-                .isEqualTo(QualityStatus.SKIPPED);
-        assertThat(judge((state, questions) -> Map.of("grounded", scale(2, 1), "relevant", scale(1, 3))).judge(input()).get().status())
-                .as("a one-level scale is not a usable scale").isEqualTo(QualityStatus.SKIPPED);
-    }
-
-    @Test
-    void outOfRangeScoreIsSkipped() {
-        assertThat(judge((state, questions) -> answers(3.5, 2)).judge(input()).get().status()).isEqualTo(QualityStatus.SKIPPED);
-        assertThat(judge((state, questions) -> answers(-0.5, 2)).judge(input()).get().status()).isEqualTo(QualityStatus.SKIPPED);
-    }
-
-    @Test
-    void nullAnswerIsJudgedAsEmpty() {
-        val captured = new AtomicReference<String>();
-        judge((state, questions) -> {
-            captured.set(state);
-            return answers(0, 0);
-        }).judge(new JudgeInput("q", List.empty(), List.empty(), null));
-        assertThat(captured.get()).endsWith("Answer: ");
+    void emptyEvidenceHistoryAndAnswerAreRenderedExplicitly() {
+        val empty = new JudgeInput("q", List.empty(), List.empty(), null);
+        val jevInput = JevAnswerJudge.toInput(empty, EvidenceFormatter.format(empty.evidence(), 8000));
+        assertThat(jevInput.context()).containsExactly(EvidenceFormatter.NO_ROWS);
+        assertThat(jevInput.answer()).isEmpty();
+        assertThat(jevInput.field(JevAnswerJudge.CONVERSATION_FIELD, String.class)).isEqualTo(JevAnswerJudge.NO_CONVERSATION);
     }
 
     @Test
     void evidenceTruncationIsReported() {
         val rows = List.of(new QueryEvidence("MATCH (n) RETURN n", java.util.List.of(Map.of("n", "x")), 1, true, null));
-        val quality = judge((state, questions) -> answers(2, 2)).judge(new JudgeInput("q", List.empty(), rows, "a")).get();
+        val quality = judgeReturning(new JevVerdict(true, java.util.List.of(), null, ""))
+                .judge(new JudgeInput("q", List.empty(), rows, "a")).get();
         assertThat(quality.evidenceTruncated()).isTrue();
     }
 }

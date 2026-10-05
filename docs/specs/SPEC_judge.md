@@ -1,5 +1,7 @@
 # Spec: Chat Quality Gate (JevJudge)
 
+> **Superseded in part.** The Jev client layer described below (`RestSystemOneApi`, `RestSystemOneClient`, `SystemOneApi`, the `app.judge` timeout/base-url/api-key/model keys, `min-score` and the 0..1 `grounded`/`relevance` fields) was replaced by the spring-ai-typesafe library; see `SPEC_spring-ai-typesafe.md` for the current design. The goals, intents and fail-open behavior here still hold.
+
 ## Summary
 Add an optional, off-by-default **answer judge** after the chat agent finishes. `ChatService.runAgent()` sends the
 conversation, the rows the agent retrieved (`ToolTrace.evidence()`) and its final answer to the TypeSafe **Jev**

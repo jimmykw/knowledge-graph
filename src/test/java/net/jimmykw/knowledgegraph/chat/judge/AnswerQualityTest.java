@@ -8,26 +8,30 @@ import org.junit.jupiter.api.Test;
 class AnswerQualityTest {
 
     @Test
-    void scoreExactlyAtThresholdIsOk() {
-        assertThat(AnswerQuality.scored(0.7, 0.7, 0.7, false).status()).isEqualTo(QualityStatus.OK);
+    void okHasNoFeedback() {
+        val ok = AnswerQuality.ok(false);
+        assertThat(ok.status()).isEqualTo(QualityStatus.OK);
+        assertThat(ok.feedback()).isNull();
     }
 
     @Test
-    void eitherDimensionBelowThresholdIsLow() {
-        assertThat(AnswerQuality.scored(0.69, 1.0, 0.7, false).status()).isEqualTo(QualityStatus.LOW);
-        assertThat(AnswerQuality.scored(1.0, 0.1, 0.7, false).status()).isEqualTo(QualityStatus.LOW);
+    void lowCarriesTheJudgesFeedback() {
+        val low = AnswerQuality.low("grounded: rated \"Some claims supported\"", false);
+        assertThat(low.status()).isEqualTo(QualityStatus.LOW);
+        assertThat(low.feedback()).contains("Some claims supported");
     }
 
     @Test
-    void skippedHasNoScores() {
+    void skippedHasNoFeedbackAndNoTruncation() {
         val skipped = AnswerQuality.skipped();
         assertThat(skipped.status()).isEqualTo(QualityStatus.SKIPPED);
-        assertThat(skipped.grounded()).isNull();
-        assertThat(skipped.relevance()).isNull();
+        assertThat(skipped.feedback()).isNull();
+        assertThat(skipped.evidenceTruncated()).isFalse();
     }
 
     @Test
     void carriesTruncationFlag() {
-        assertThat(AnswerQuality.scored(1.0, 1.0, 0.7, true).evidenceTruncated()).isTrue();
+        assertThat(AnswerQuality.ok(true).evidenceTruncated()).isTrue();
+        assertThat(AnswerQuality.low("x", true).evidenceTruncated()).isTrue();
     }
 }

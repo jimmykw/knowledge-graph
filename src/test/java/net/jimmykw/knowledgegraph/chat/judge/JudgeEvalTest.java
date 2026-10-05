@@ -9,17 +9,18 @@ import io.vavr.collection.List;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 import net.jimmykw.knowledgegraph.chat.QueryEvidence;
-import net.jimmykw.knowledgegraph.chat.routing.RestSystemOneApi;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.springaicommunity.typesafe.RetryPolicy;
+import org.springaicommunity.typesafe.TypeSafeClient;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 
 /**
- * Real-API eval of the answer judge (OpenRouter System One, jev-1.13). Needs OPENAI_API_KEY (the OpenRouter key).
- * Hard gate: the six golden-case answers, built from fixed rows, are never LOW and never SKIPPED. Reported: score
- * distribution for good vs bad answers, the separation between them, and block recall at the threshold.
+ * Real-API eval of the answer judge (OpenRouter System One, typesafe/jev-1.13 through the spring-ai-typesafe JevJudge). Needs OPENAI_API_KEY (the OpenRouter key).
+ * Hard gate: the six golden-case answers, built from fixed rows, are never LOW and never SKIPPED. Reported: how many good answers are
+ * wrongly flagged LOW and how many bad answers are caught.
  */
 @Slf4j
 @EnabledIfSystemProperty(named = "judge.eval", matches = "true")
@@ -128,18 +129,15 @@ class JudgeEvalTest {
                     "No document mentions the Apple II."));
 
     private record Scored(Case item, AnswerQuality quality) {
-        double combined() {
-            return Math.min(quality.grounded(), quality.relevance());
-        }
     }
 
     @Test
-    void goldenAnswersAreNeverLowAndScoresSeparateGoodFromBad() {
+    void goldenAnswersAreNeverLowAndBadAnswersAreCaught() {
         val judge = judge();
         val scored = CASES.map(item -> new Scored(item, judge.judge(new JudgeInput(item.question(), item.history(), item.evidence(),
                 item.answer())).get()));
-        scored.forEach(result -> log.info("JUDGE EVAL: [{}] {} grounded={} relevance={} <- {}", result.quality().status(),
-                result.item().good() ? "GOOD" : "BAD ", fmt(result.quality().grounded()), fmt(result.quality().relevance()), result.item().name()));
+        scored.forEach(result -> log.info("JUDGE EVAL: [{}] {} <- {} {}", result.quality().status(), result.item().good() ? "GOOD" : "BAD ",
+                result.item().name(), result.quality().feedback() == null ? "" : "| " + result.quality().feedback().replace('\n', ' ')));
         val skipped = scored.filter(result -> result.quality().status() == QualityStatus.SKIPPED);
         assertThat(skipped.map(result -> result.item().name())).as("judge calls that failed").isEmpty();
         report(scored);
@@ -150,25 +148,16 @@ class JudgeEvalTest {
     private static void report(List<Scored> scored) {
         val good = scored.filter(result -> result.item().good());
         val bad = scored.reject(result -> result.item().good());
-        val minGood = good.map(Scored::combined).min().getOrElse(0.0);
-        val maxBad = bad.map(Scored::combined).max().getOrElse(1.0);
         val falseLow = good.count(result -> result.quality().status() == QualityStatus.LOW);
         val caught = bad.count(result -> result.quality().status() == QualityStatus.LOW);
-        log.info("JUDGE EVAL: good mean={} min={} | bad mean={} max={} | separation (min good - max bad)={}",
-                fmt(good.map(Scored::combined).average().getOrElse(0.0)), fmt(minGood),
-                fmt(bad.map(Scored::combined).average().getOrElse(0.0)), fmt(maxBad), fmt(minGood - maxBad));
-        log.info("JUDGE EVAL: threshold={} false LOW on good: {}/{} | bad answers flagged LOW: {}/{}", System.getProperty("judge.threshold", "0.7"),
-                falseLow, good.size(), caught, bad.size());
-    }
-
-    private static String fmt(double value) {
-        return String.format("%.2f", value);
+        log.info("JUDGE EVAL: false LOW on good: {}/{} | bad answers flagged LOW: {}/{}", falseLow, good.size(), caught, bad.size());
     }
 
     private static AnswerJudge judge() {
         val key = System.getenv("OPENAI_API_KEY");
         assertThat(key).as("OPENAI_API_KEY (OpenRouter key) must be set").isNotBlank();
-        val api = new RestSystemOneApi("https://openrouter.ai/api/v1", key, "jev-1.13", Duration.ofSeconds(10), "Judge");
-        return new JevAnswerJudge(api, Double.parseDouble(System.getProperty("judge.threshold", "0.7")), 8000);
+        val client = TypeSafeClient.builder().baseUrl("https://openrouter.ai/api").apiKey(key).defaultModel("typesafe/jev-1.13")
+                .timeout(Duration.ofSeconds(10)).retryPolicy(RetryPolicy.defaults()).build();
+        return new JevAnswerJudge(JevAnswerJudge.buildJudge(client), 8000);
     }
 }

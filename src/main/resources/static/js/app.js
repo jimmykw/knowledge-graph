@@ -208,6 +208,7 @@ document.addEventListener('alpine:init', () => {
         cypherQueries: (body && body.cypherQueries) || [],
         skillsExecuted: (body && body.skillsExecuted) || [],
         results: (body && body.results) || [],
+        evidence: (body && body.evidence) || [],
         rowCount: (body && body.rowCount) || 0,
         truncated: !!(body && body.truncated),
         error: (body && body.error) || null,

@@ -14,7 +14,7 @@
         href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github-dark.min.css"
         integrity="sha384-wH75j6z1lH97ZOpMOInqhgKzFkAInZPPSPlZpYKYTOqsaizPvhQZmAtLcPKXpLyH"
         crossorigin="anonymous">
-  <link rel="stylesheet" href="/css/app.css?v=quality-chip-7">
+  <link rel="stylesheet" href="/css/app.css?v=wrap-9">
   <script defer
           src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"
           integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi"
@@ -106,27 +106,35 @@
                             </ul>
                           </div>
                         </template>
-                        <template x-if="trace.cypherQueries && trace.cypherQueries.length">
+                        <template x-if="queryList().length">
                           <div class="kg-trace-section">
                             <h6>Cypher queries
-                              <span class="kg-count" x-text="'(' + trace.cypherQueries.length + ')'"></span>
+                              <span class="kg-count" x-text="'(' + queryList().length + ')'"></span>
                             </h6>
-                            <template x-for="(query, qi) in trace.cypherQueries" :key="qi">
+                            <template x-for="(query, qi) in queryList()" :key="qi">
                               <div class="kg-query">
                                 <pre class="hljs language-cypher"
                                     x-init="$nextTick(() => highlightQuery($el, query))"></pre>
                                 <button type="button" class="kg-copy"
                                         @click="copyQuery(query, $event)">Copy</button>
+                                <div class="kg-query-meta" :class="{ 'kg-query-empty': queryMetaEmpty(qi) }" x-show="queryMeta(qi)"
+                                     x-text="queryMeta(qi)"></div>
                               </div>
                             </template>
                           </div>
                         </template>
-                        <template x-if="trace.results && trace.results.length">
+                        <template x-if="shownRows().length">
                           <div class="kg-trace-section">
                             <h6>Result rows
                               <span class="kg-count"
-                                    x-text="'(' + cappedRows().length + ' of ' + trace.rowCount + (trace.truncated ? ' · server-truncated' : '') + ')'"></span>
+                                    x-text="'(' + cappedRows().length + ' of ' + shownCount() + (shownTruncated() ? ' · server-truncated' : '') + (shownIndex() >= 0 ? ' · query ' + (shownIndex() + 1) : '') + ')'"></span>
                             </h6>
+                            <div class="kg-row-tabs" x-show="queriesWithRows().length > 1">
+                              <template x-for="item in queriesWithRows()" :key="item.index">
+                                <button type="button" class="kg-row-tab" :class="{ 'kg-row-tab-active': item.index === shownIndex() }"
+                                        @click="pick(item.index)" x-text="'Query ' + (item.index + 1) + ' (' + item.count + ')'"></button>
+                              </template>
+                            </div>
                             <div class="kg-table-wrap">
                               <table>
                                 <thead>

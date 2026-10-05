@@ -1,6 +1,8 @@
 package net.jimmykw.knowledgegraph.config;
 
 import org.neo4j.driver.Driver;
+import org.springaicommunity.typesafe.TypeSafeClient;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.converter.BeanOutputConverter;
@@ -18,8 +20,7 @@ import net.jimmykw.knowledgegraph.chat.routing.GraphCatalog;
 import net.jimmykw.knowledgegraph.chat.routing.GraphProfile;
 import net.jimmykw.knowledgegraph.chat.routing.NoOpQuestionRouter;
 import net.jimmykw.knowledgegraph.chat.routing.QuestionRouter;
-import net.jimmykw.knowledgegraph.chat.routing.RestSystemOneApi;
-import net.jimmykw.knowledgegraph.chat.routing.RestSystemOneClient;
+import net.jimmykw.knowledgegraph.chat.routing.TypeSafeIntentClassifier;
 import net.jimmykw.knowledgegraph.chat.routing.TypeSafeQuestionRouter;
 import net.jimmykw.knowledgegraph.extract.EntityExtractionService;
 import net.jimmykw.knowledgegraph.extract.ExtractionPrompter;
@@ -28,6 +29,7 @@ import net.jimmykw.knowledgegraph.extract.RelationshipExtractionService;
 import net.jimmykw.knowledgegraph.graph.Neo4jGraphWriter;
 import net.jimmykw.knowledgegraph.ingest.PdfIngestionService;
 
+import io.vavr.control.Option;
 import lombok.val;
 
 @Configuration
@@ -77,22 +79,26 @@ public class AppConfig {
     }
 
     @Bean
-    QuestionRouter questionRouter(AppProperties appProperties, Neo4jGraphWriter writer) {
+    QuestionRouter questionRouter(AppProperties appProperties, ObjectProvider<TypeSafeClient> client, Neo4jGraphWriter writer) {
         val routing = appProperties.routing();
         return routing.enabled()
-                ? new TypeSafeQuestionRouter(new RestSystemOneClient(routingApi(routing), warmed(new GraphCatalog(() -> graphProfile(writer)))), routing.blockThreshold())
+                ? new TypeSafeQuestionRouter(new TypeSafeIntentClassifier(requireClient(client, "app.routing.enabled"),
+                        warmed(new GraphCatalog(() -> graphProfile(writer)))), routing.blockThreshold())
                 : new NoOpQuestionRouter();
     }
 
     @Bean
-    AnswerJudge answerJudge(AppProperties appProperties) {
+    AnswerJudge answerJudge(AppProperties appProperties, ObjectProvider<TypeSafeClient> client) {
         val judge = appProperties.judge();
-        val api = new RestSystemOneApi(judge.baseUrl(), judge.apiKey(), judge.model(), judge.timeout(), "Judge");
-        return judge.enabled() ? new JevAnswerJudge(api, judge.minScore(), judge.maxEvidenceChars()) : new NoOpAnswerJudge();
+        return judge.enabled()
+                ? new JevAnswerJudge(JevAnswerJudge.buildJudge(requireClient(client, "app.judge.enabled")), judge.maxEvidenceChars())
+                : new NoOpAnswerJudge();
     }
 
-    private static RestSystemOneApi routingApi(AppProperties.Routing routing) {
-        return new RestSystemOneApi(routing.baseUrl(), routing.apiKey(), routing.model(), routing.timeout(), "Routing");
+    /** The starter only creates the client when spring.ai.typesafe.api-key is set; a feature that needs it must not start without it. */
+    static TypeSafeClient requireClient(ObjectProvider<TypeSafeClient> client, String flag) {
+        return Option.of(client.getIfAvailable())
+                .getOrElseThrow(() -> new IllegalStateException(flag + "=true needs a TypeSafe client, but spring.ai.typesafe.api-key is not set"));
     }
 
     private static GraphProfile graphProfile(Neo4jGraphWriter writer) {

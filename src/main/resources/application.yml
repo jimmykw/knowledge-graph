@@ -8,23 +8,16 @@ app:
     query-timeout-ms: 10000
     history-window: 20
   routing:
-    # On in this file (the code treats a missing flag as off). When enabled, the prompt AND recent conversation history (including assistant
-    # answers built from graph rows) are sent to OpenRouter's System One endpoint (TypeSafe Jev).
+    # Intent gate (TypeSafe Jev). On in this file (the code treats a missing flag as off). When enabled, the prompt AND
+    # recent conversation history (including assistant answers built from graph rows) are sent to OpenRouter's System One
+    # endpoint. Connection settings are under spring.ai.typesafe.
     enabled: true
     block-threshold: 0.9
-    timeout: 5s
-    base-url: https://openrouter.ai/api/v1
-    api-key: ${OPENAI_API_KEY}
-    model: jev-1.13   # sent as typesafe/jev-1.13; pinned, not jev-latest
   judge:
-    # On in this file (the code treats a missing flag as off). When enabled, every agent answer sends the conversation history, the retrieved graph rows
-    # and the answer to OpenRouter's System One endpoint (TypeSafe Jev) to be scored. Advisory only.
+    # Answer judge (TypeSafe Jev JevJudge). On in this file (the code treats a missing flag as off). When enabled, every
+    # agent answer sends the conversation history, the retrieved graph rows and the answer to OpenRouter's System One
+    # endpoint to be scored. Advisory only.
     enabled: true
-    min-score: 0.7
-    timeout: 3s
-    base-url: https://openrouter.ai/api/v1
-    api-key: ${OPENAI_API_KEY}
-    model: jev-1.13   # sent as typesafe/jev-1.13; pinned, not jev-latest
     max-evidence-chars: 8000
   models:
     extract:
@@ -63,6 +56,15 @@ app:
 
 spring:
   ai:
+    typesafe:
+      # One shared TypeSafeClient (spring-ai-starter-typesafe) for the intent gate and the answer judge.
+      api-key: ${OPENAI_API_KEY}
+      base-url: https://openrouter.ai/api   # the SDK appends /v1/systemone
+      model: typesafe/jev-1.13              # pinned, not jev-latest
+      timeout: 3s                           # per attempt
+      retry:
+        max-retries: 1
+        total-timeout: 5s                   # includes the next attempt's HTTP timeout
     openai:
       # Feeds Spring AI's auto-configured OpenAI beans (audio/image/moderation), which
       # hard-fail context startup when no credential is resolvable. The app's own chat and
