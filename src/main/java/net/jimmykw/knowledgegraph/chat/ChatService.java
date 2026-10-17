@@ -150,7 +150,7 @@ public class ChatService {
                 trace.cypherQueries(), conversationId, trace.evidence(), route, quality);
     }
 
-    private static String resolveError(ToolTrace trace) {
+    static String resolveError(ToolTrace trace) {
         if (trace.error() != null) {
             return trace.error();
         }
@@ -160,7 +160,7 @@ public class ChatService {
         return null;
     }
 
-    private static ToolExecutionEligibilityChecker cappedChecker(ToolTrace trace, int maxRounds) {
+    static ToolExecutionEligibilityChecker cappedChecker(ToolTrace trace, int maxRounds) {
         return response -> {
             if (!response.hasToolCalls()) {
                 return false;

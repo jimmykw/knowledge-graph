@@ -38,6 +38,58 @@ class ToolTraceTest {
         assertThat(evidence.count()).isZero();
     }
 
+    @Test
+    void blankCypherIsKeptAsEvidenceButNotListedAsAQuery() {
+        val trace = new ToolTrace();
+        trace.recordRunReadCypher("  ", List.of(), 0, false, "Cypher query must not be blank.");
+        trace.recordRunReadCypher(null, List.of(), 0, false, null);
+        trace.recordCypherQuery("");
+
+        assertThat(trace.cypherQueries()).isEmpty();
+        assertThat(trace.evidence()).hasSize(2);
+    }
+
+    @Test
+    void lastAccessorsReflectTheMostRecentQuery() {
+        val trace = new ToolTrace();
+        trace.recordRunReadCypher("Q1", rowsOf(3), 3, true, null);
+        trace.recordRunReadCypher("Q2", rowsOf(1), 1, false, null);
+
+        assertThat(trace.lastCypher()).isEqualTo("Q2");
+        assertThat(trace.lastRows()).hasSize(1);
+        assertThat(trace.lastCount()).isEqualTo(1);
+        assertThat(trace.lastTruncated()).isFalse();
+        assertThat(trace.evidence().get(0).truncated()).isTrue();
+    }
+
+    @Test
+    void freshTraceHasEmptyDefaults() {
+        val trace = new ToolTrace();
+
+        assertThat(trace.lastCypher()).isNull();
+        assertThat(trace.lastRows()).isEmpty();
+        assertThat(trace.error()).isNull();
+        assertThat(trace.roundCount()).isZero();
+        assertThat(trace.maxRoundsExceeded()).isFalse();
+    }
+
+    @Test
+    void recordsToolCallsSkillsErrorAndRounds() {
+        val trace = new ToolTrace();
+        trace.recordToolCall("getGraphSchema", "{}", "{}", null);
+        trace.recordSkill("entity-lookup");
+        trace.setError("boom");
+        trace.incrementRoundCount();
+        trace.markMaxRoundsExceeded();
+
+        assertThat(trace.toolCalls()).hasSize(1);
+        assertThat(trace.toolCalls().get(0).name()).isEqualTo("getGraphSchema");
+        assertThat(trace.skillsExecuted()).containsExactly("entity-lookup");
+        assertThat(trace.error()).isEqualTo("boom");
+        assertThat(trace.roundCount()).isEqualTo(1);
+        assertThat(trace.maxRoundsExceeded()).isTrue();
+    }
+
     private static List<Map<String, Object>> rowsOf(int size) {
         return java.util.stream.IntStream.range(0, size)
                 .mapToObj(index -> Map.<String, Object>of("index", index))

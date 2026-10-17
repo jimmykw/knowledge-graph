@@ -325,7 +325,7 @@ document.addEventListener('alpine:init', () => {
       }
       const nodes = body.nodeCount || 0;
       if (nodes === 0) {
-        return 'Ingested ' + name + ' \u2014 extracted 0 nodes (PDF may be image-only or encrypted).';
+        return 'Ingested ' + name + ' \u2014 extracted 0 nodes (PDF may be image-only).';
       }
       const labels = this.countParts(body.countsByLabel);
       const rels = body.relationshipCount || 0;

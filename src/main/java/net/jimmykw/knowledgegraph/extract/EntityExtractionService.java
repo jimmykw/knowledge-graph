@@ -14,6 +14,7 @@ import org.springframework.ai.document.Document;
 
 import net.jimmykw.knowledgegraph.config.AppProperties;
 import net.jimmykw.knowledgegraph.graph.CanonicalIndex;
+import net.jimmykw.knowledgegraph.graph.CypherIdentifiers;
 import net.jimmykw.knowledgegraph.graph.EntityNormalizer;
 import net.jimmykw.knowledgegraph.graph.Neo4jGraphWriter;
 
@@ -84,7 +85,7 @@ public class EntityExtractionService {
 
         val entityPartition = candidateEntities.partition(EntityExtractionService::isValidEntity);
         entityPartition._2.forEach(entity ->
-                log.warn("Rejected entity: name='{}', label='{}' (blank or null name/label)",
+                log.warn("Rejected entity: name='{}', label='{}' (blank, null or unsafe name/label)",
                         entity.name(), entity.label()));
         log.info("Pass 1: {} valid entit(ies), {} rejected by validation",
                 entityPartition._1.length(), entityPartition._2.length());
@@ -163,7 +164,7 @@ public class EntityExtractionService {
     private static boolean isValidEntity(ExtractionRecords.ExtractedEntity entity) {
         return entity != null
                 && entity.name() != null && !entity.name().isBlank()
-                && entity.label() != null && !entity.label().isBlank();
+                && CypherIdentifiers.isSafe(entity.label());
     }
 
     @PreDestroy

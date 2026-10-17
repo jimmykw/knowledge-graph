@@ -14,6 +14,7 @@ import org.springframework.ai.document.Document;
 
 import net.jimmykw.knowledgegraph.config.AppProperties;
 import net.jimmykw.knowledgegraph.graph.CanonicalIndex;
+import net.jimmykw.knowledgegraph.graph.CypherIdentifiers;
 import net.jimmykw.knowledgegraph.graph.Neo4jGraphWriter;
 
 import io.vavr.Tuple;
@@ -203,7 +204,7 @@ public class RelationshipExtractionService {
                 && rel.sourceLabel() != null && !rel.sourceLabel().isBlank()
                 && rel.targetName() != null && !rel.targetName().isBlank()
                 && rel.targetLabel() != null && !rel.targetLabel().isBlank()
-                && rel.type() != null && !rel.type().isBlank();
+                && CypherIdentifiers.isSafe(rel.type());
     }
 
     @PreDestroy

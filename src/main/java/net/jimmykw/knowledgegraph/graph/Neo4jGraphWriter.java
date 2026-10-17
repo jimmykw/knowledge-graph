@@ -99,6 +99,7 @@ public class Neo4jGraphWriter {
         if (entities.isEmpty()) {
             return HashMap.empty();
         }
+        requireSafe(entities.map(ExtractedEntity::label), "label");
         return write(session -> {
             val params = java.util.Map.of("entities", entityParams(entities), "hash", hash);
             return List.ofAll(session.run(MERGE_ENTITIES_QUERY, params).list())
@@ -111,6 +112,7 @@ public class Neo4jGraphWriter {
         if (relationships.isEmpty()) {
             return HashMap.empty();
         }
+        requireSafe(relationships.map(ResolvedRelationship::type), "relationship type");
         return write(session -> List.ofAll(session.run(MERGE_RELATIONSHIPS_QUERY,
                         java.util.Map.of("rels", relationshipParams(relationships))).list())
                 .foldLeft(HashMap.<Integer, Long>empty(),
@@ -182,6 +184,13 @@ public class Neo4jGraphWriter {
                         "type", rel.type(),
                         "description", nullSafe(rel.description()))
                 .toJavaMap();
+    }
+
+    /** APOC does not escape identifiers, so anything that could break out of the backticks is refused before any query runs. */
+    private static void requireSafe(List<String> identifiers, String kind) {
+        identifiers.reject(CypherIdentifiers::isSafe).headOption().forEach(bad -> {
+            throw new IllegalArgumentException("Unsafe " + kind + " refused: " + bad);
+        });
     }
 
     private <T> T write(Function<Session, T> work) {

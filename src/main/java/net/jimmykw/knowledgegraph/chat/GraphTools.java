@@ -23,8 +23,16 @@ public class GraphTools {
             "\\b(CREATE|MERGE|SET\\b|DELETE|REMOVE|DROP|CALL\\s+apoc\\.(merge|create))\\b",
             Pattern.CASE_INSENSITIVE);
 
+    private static final Pattern EXTERNAL_PATTERN = Pattern.compile(
+            "\\bLOAD\\s+CSV\\b|\\bCALL\\s+apoc\\.(load|import|export|cypher|periodic)\\.",
+            Pattern.CASE_INSENSITIVE);
+
     static Pattern writePattern() {
         return WRITE_PATTERN;
+    }
+
+    static Pattern externalPattern() {
+        return EXTERNAL_PATTERN;
     }
 
     private final SchemaService schemaService;
@@ -49,6 +57,10 @@ public class GraphTools {
         }
         if (WRITE_PATTERN.matcher(cypher).find()) {
             return errorJson("Error: write operations are not allowed. Only read-only Cypher is permitted.");
+        }
+        if (EXTERNAL_PATTERN.matcher(cypher).find()) {
+            return errorJson("Error: loading external data and dynamic Cypher procedures are not allowed. "
+                    + "Query the graph with plain read-only Cypher.");
         }
         val executed = cypherExecutor.execute(cypher);
         if (executed.isFailure()) {

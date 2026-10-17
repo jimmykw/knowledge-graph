@@ -11,6 +11,7 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.web.multipart.MultipartFile;
 
 import net.jimmykw.knowledgegraph.config.AppProperties;
+import net.jimmykw.knowledgegraph.exception.InvalidFileException;
 import net.jimmykw.knowledgegraph.exception.MaxPagesExceededException;
 import net.jimmykw.knowledgegraph.graph.Neo4jGraphWriter;
 
@@ -26,6 +27,8 @@ public class PdfIngestionService {
 
     public static final String STATUS_PROCESSED = "PROCESSED";
     public static final String STATUS_SKIPPED_DUPLICATE = "SKIPPED_DUPLICATE";
+
+    private static final String UNREADABLE_PDF = "PDF could not be read (corrupt, encrypted or not a PDF).";
 
     public record IngestionResult(String documentId, String documentHash, String status,
                                   List<Document> chunks) {
@@ -46,7 +49,7 @@ public class PdfIngestionService {
         }
 
         log.info("Reading PDF: '{}', {} bytes", file.getOriginalFilename(), bytes.length);
-        val pages = readPages(bytes);
+        val pages = readPages(bytes).getOrElseThrow(e -> new InvalidFileException(UNREADABLE_PDF, e));
         if (pages.size() > appProperties.maxPages()) {
             throw new MaxPagesExceededException("PDF has " + pages.size() + " pages, which exceeds the maximum of "
                     + appProperties.maxPages() + ".");
@@ -59,16 +62,11 @@ public class PdfIngestionService {
         return new IngestionResult(String.valueOf(docId), hash, STATUS_PROCESSED, chunks);
     }
 
-    private List<Document> readPages(byte[] bytes) {
+    private Try<List<Document>> readPages(byte[] bytes) {
         val config = PdfDocumentReaderConfig.builder().withPagesPerDocument(1).build();
-        val pdfReader = new PagePdfDocumentReader(new ByteArrayResource(bytes), config);
-        return Try.of(pdfReader::get)
-                .recover(RuntimeException.class, e -> {
-                    log.warn("PDF text extraction failed (possibly encrypted or image-only): {}", e.getMessage());
-                    return java.util.List.<Document>of();
-                })
+        return Try.of(() -> new PagePdfDocumentReader(new ByteArrayResource(bytes), config).get())
                 .map(List::ofAll)
-                .get();
+                .onFailure(e -> log.warn("PDF could not be read (corrupt, encrypted or not a PDF): {}", e.getMessage()));
     }
 
     private List<Document> splitChunks(List<Document> pages) {

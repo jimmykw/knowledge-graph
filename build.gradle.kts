@@ -1,5 +1,6 @@
 plugins {
     java
+    jacoco
     id("org.springframework.boot") version "4.0.7"
 }
 
@@ -42,8 +43,62 @@ dependencies {
     testAnnotationProcessor("org.projectlombok:lombok:1.18.46")
 }
 
+jacoco {
+    toolVersion = "0.8.13"
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+tasks.test {
+    // The opt-in real-Neo4j suite has its own task; keep `test` hermetic.
+    filter { excludeTestsMatching("*IT") }
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        html.required = true
+        xml.required = true
+    }
+}
+
+tasks.register<org.gradle.api.tasks.testing.Test>("neo4jIt") {
+    group = "verification"
+    description = "Runs the *IT tests against the dedicated throwaway Neo4j (default bolt://localhost:7688)."
+    systemProperty("neo4j.it", "true")
+    listOf("NEO4J_IT_URI", "NEO4J_IT_USER", "NEO4J_IT_PASSWORD")
+        .forEach { name -> System.getenv(name)?.let { value -> environment(name, value) } }
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    filter { includeTestsMatching("*IT") }
+    maxParallelForks = 1
+    outputs.upToDateWhen { false }
+    extensions.configure<JacocoTaskExtension> {
+        setDestinationFile(layout.buildDirectory.file("jacoco/neo4jIt.exec").get().asFile)
+    }
+    testLogging {
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        events("passed", "skipped", "failed")
+        showStandardStreams = true
+    }
+}
+
+tasks.register<JacocoReport>("jacocoMergedReport") {
+    group = "verification"
+    description = "Merges test.exec and neo4jIt.exec (whichever exist) into build/reports/jacoco/merged."
+    // Report-only: orders after the test tasks when both are requested, but never triggers them.
+    mustRunAfter(tasks.test, "neo4jIt")
+    executionData(fileTree(layout.buildDirectory.dir("jacoco")) { include("test.exec", "neo4jIt.exec") })
+    sourceSets(sourceSets.main.get())
+    reports {
+        html.required = true
+        html.outputLocation = layout.buildDirectory.dir("reports/jacoco/merged")
+        xml.required = true
+        xml.outputLocation = layout.buildDirectory.file("reports/jacoco/merged/jacoco.xml")
+    }
 }
 
 tasks.register<org.gradle.api.tasks.testing.Test>("chatEval") {
@@ -83,4 +138,26 @@ tasks.register<org.gradle.api.tasks.testing.Test>("judgeEval") {
         events("passed", "skipped", "failed")
         showStandardStreams = true
     }
+}
+
+val nodeOnPath = (System.getenv("PATH") ?: "").split(File.pathSeparator).any { dir -> File(dir, "node").canExecute() }
+
+tasks.register<Exec>("jsTest") {
+    group = "verification"
+    description = "Runs the UI tests in src/test/js with the Node built-in test runner (skipped when node is not on the PATH)."
+    inputs.dir("src/test/js")
+    inputs.dir("src/main/resources/static/js")
+    outputs.upToDateWhen { false }
+    // Node expands the glob itself; Exec does not go through a shell.
+    commandLine("node", "--test", "src/test/js/*.test.js")
+    onlyIf {
+        if (!nodeOnPath) {
+            logger.lifecycle("jsTest skipped: node is not on the PATH")
+        }
+        nodeOnPath
+    }
+}
+
+tasks.check {
+    dependsOn("jsTest")
 }
