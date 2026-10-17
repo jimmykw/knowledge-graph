@@ -49,6 +49,7 @@ import tools.jackson.databind.json.JsonMapper;
         "app.chat.max-tool-call-rounds=3",
         "app.routing.enabled=false",
         "app.judge.enabled=false",
+        "app.resolution.enabled=true",
         "server.address=127.0.0.1"})
 public abstract class AppFlowTestBase {
 

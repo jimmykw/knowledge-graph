@@ -40,7 +40,7 @@ class ChatServiceTest {
         when(client.mutate().defaultAdvisors(any(Advisor.class)).build().prompt(any(String.class)).advisors(any(java.util.function.Consumer.class))
                 .call().content()).thenReturn("agent answer");
         memory = MessageWindowChatMemory.builder().chatMemoryRepository(new InMemoryChatMemoryRepository()).maxMessages(20).build();
-        val props = new AppProperties(0, 0, new AppProperties.Chat(0, 10, 2, 0L, 0), null, null, null);
+        val props = new AppProperties(0, 0, new AppProperties.Chat(0, 10, 2, 0L, 0), null, null, null, null);
         QuestionRouter router = (prompt, history) -> Option.none();
         service = new ChatService(client, mock(ChatClient.class), props, memory, router, new NoOpAnswerJudge());
     }

@@ -70,7 +70,7 @@ class TypeSafeConfigTest {
     }
 
     private static AppProperties properties(boolean routing, boolean judge) {
-        return new AppProperties(0, 0, null, null, new AppProperties.Routing(routing, 0), new AppProperties.Judge(judge, 0));
+        return new AppProperties(0, 0, null, null, new AppProperties.Routing(routing, 0), new AppProperties.Judge(judge, 0), null);
     }
 
     @Test

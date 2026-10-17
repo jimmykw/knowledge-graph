@@ -11,7 +11,7 @@ class AppPropertiesTest {
 
     @Test
     void zeroAndNullValuesFallBackToDefaults() {
-        val props = new AppProperties(0, 0, null, null, null, null);
+        val props = new AppProperties(0, 0, null, null, null, null, null);
 
         assertThat(props.maxPages()).isEqualTo(50);
         assertThat(props.chunkTokens()).isEqualTo(1000);
@@ -28,7 +28,7 @@ class AppPropertiesTest {
 
     @Test
     void modelDefaults() {
-        val models = new AppProperties(0, 0, null, null, null, null).models();
+        val models = new AppProperties(0, 0, null, null, null, null, null).models();
 
         assertThat(models.extract().temperature()).isEqualTo(0.2);
         assertThat(models.extract().timeout()).isEqualTo(Duration.ofSeconds(600));
@@ -50,7 +50,7 @@ class AppPropertiesTest {
         val chat = new AppProperties.Chat(5, 6, 7, 8L, 9);
         val models = new AppProperties.Models(
                 new AppProperties.Models.Extract("u", "k", "m", 0.5, Duration.ofSeconds(1), 0, 2), null);
-        val props = new AppProperties(3, 4, chat, models, new AppProperties.Routing(true, 0.5), new AppProperties.Judge(true, 10));
+        val props = new AppProperties(3, 4, chat, models, new AppProperties.Routing(true, 0.5), new AppProperties.Judge(true, 10), null);
 
         assertThat(props.maxPages()).isEqualTo(3);
         assertThat(props.chunkTokens()).isEqualTo(4);

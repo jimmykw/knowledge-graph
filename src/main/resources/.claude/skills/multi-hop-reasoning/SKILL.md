@@ -25,7 +25,10 @@ two-entity path ("how are X and Y connected?") — that is the `path-finding` sk
 
 ## Graph conventions
 
-- Entity nodes match on `name_norm` (trim + lowercase). Use `toLower($name)`.
+- Entity nodes match on `name_norm` (trim + lowercase) or any of their other names in
+  `aliases_norm`. Use `toLower($name)`.
+- `:Document` nodes link to every entity they mention (`MENTIONS`). Keep them out of
+  every hop (`NOT x:Document`), or every two entities from one PDF look connected.
 - Relationships carry a `description` property — surface it to justify each hop.
 - Relationship types and node labels are dynamic; never hard-code them.
 - Use the schema (via `getGraphSchema`) to pick real relationship types when the
@@ -36,9 +39,9 @@ two-entity path ("how are X and Y connected?") — that is the `path-finding` sk
 ### Two-hop with a named start
 
 ```cypher
-MATCH (start) WHERE start.name_norm = toLower($name)
+MATCH (start) WHERE (start.name_norm = toLower($name) OR toLower($name) IN start.aliases_norm)
 MATCH (start)-[r1]-(mid)-[r2]-(target)
-WHERE id(target) <> id(start)
+WHERE target <> start AND NOT mid:Document AND NOT target:Document
 RETURN start.name AS start, type(r1) AS firstHop, mid.name AS via, mid.label AS viaLabel,
        type(r2) AS secondHop, target.name AS target, target.label AS targetLabel
 ORDER BY firstHop, secondHop
@@ -48,10 +51,10 @@ LIMIT 50
 ### Two entities sharing a common neighbor
 
 ```cypher
-MATCH (a) WHERE a.name_norm = toLower($nameA)
-MATCH (b) WHERE b.name_norm = toLower($nameB)
+MATCH (a) WHERE (a.name_norm = toLower($nameA) OR toLower($nameA) IN a.aliases_norm)
+MATCH (b) WHERE (b.name_norm = toLower($nameB) OR toLower($nameB) IN b.aliases_norm)
 MATCH (a)-[r1]-(mid)-[r2]-(b)
-WHERE id(a) <> id(b)
+WHERE a <> b AND NOT mid:Document
 RETURN mid.name AS sharedNode, mid.label AS sharedLabel,
        type(r1) AS aToMid, type(r2) AS bToMid,
        r1.description AS aToMidDesc, r2.description AS bToMidDesc
@@ -60,8 +63,9 @@ RETURN mid.name AS sharedNode, mid.label AS sharedLabel,
 ### Three-hop chain with aggregation
 
 ```cypher
-MATCH (start) WHERE start.name_norm = toLower($name)
+MATCH (start) WHERE (start.name_norm = toLower($name) OR toLower($name) IN start.aliases_norm)
 MATCH (start)-[r1]-(m1)-[r2]-(m2)-[r3]-(target)
+WHERE NOT m1:Document AND NOT m2:Document AND NOT target:Document
 RETURN target.name AS target, target.label AS targetLabel,
        collect(DISTINCT m1.name) AS firstHopNodes,
        collect(DISTINCT m2.name) AS secondHopNodes

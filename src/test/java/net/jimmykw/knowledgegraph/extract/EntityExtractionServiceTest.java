@@ -42,9 +42,9 @@ class EntityExtractionServiceTest {
         writer = mock(Neo4jGraphWriter.class);
         when(writer.mergeEntities(any(), anyString())).thenAnswer(invocation -> {
             val unique = invocation.<List<ExtractedEntity>>getArgument(0);
-            return unique.zipWithIndex().foldLeft(HashMap.<Integer, Long>empty(), (acc, pair) -> acc.put(pair._2, 100L + pair._2));
+            return unique.zipWithIndex().foldLeft(HashMap.<Integer, String>empty(), (acc, pair) -> acc.put(pair._2, "id-" + (100 + pair._2)));
         });
-        service = new EntityExtractionService(prompter, writer, new AppProperties(0, 0, null, null, null, null));
+        service = new EntityExtractionService(prompter, writer, new AppProperties(0, 0, null, null, null, null, null));
     }
 
     @AfterEach
@@ -130,8 +130,8 @@ class EntityExtractionServiceTest {
 
         val result = service.extract(chunks("chunk-a"), "hash-1");
 
-        assertThat(result.canonicalIndex().lookup("IBM", "Organization")).contains(100L);
-        assertThat(result.canonicalIndex().lookup("Watson", "Person")).contains(101L);
+        assertThat(result.canonicalIndex().lookup("IBM", "Organization")).contains("id-100");
+        assertThat(result.canonicalIndex().lookup("Watson", "Person")).contains("id-101");
         val captured = ArgumentCaptor.<List<ExtractedEntity>>captor();
         verify(writer).mergeEntities(captured.capture(), eq("hash-1"));
         assertThat(captured.getValue()).extracting(ExtractedEntity::name).containsExactly("IBM", "Watson");
@@ -140,7 +140,7 @@ class EntityExtractionServiceTest {
     @Test
     void missingIdFromTheWriterIsAnIllegalState() {
         chunkResponds("chunk-a", Try.success(entities(entity("IBM", "Organization"), entity("Watson", "Person"))));
-        org.mockito.Mockito.doReturn(HashMap.of(0, 100L)).when(writer).mergeEntities(any(), anyString());
+        org.mockito.Mockito.doReturn(HashMap.of(0, "id-100")).when(writer).mergeEntities(any(), anyString());
 
         assertThatThrownBy(() -> service.extract(chunks("chunk-a"), "h"))
                 .isInstanceOf(IllegalStateException.class)
@@ -157,6 +157,38 @@ class EntityExtractionServiceTest {
         assertThat(result.nodeCount()).isZero();
         verify(writer).mergeEntities(List.empty(), "h");
         verify(writer).recordSchema(HashSet.empty(), HashSet.empty());
+    }
+
+    @Test
+    void extractEntitiesDedupesAndCountsFailuresButWritesNothing() {
+        chunkResponds("chunk-a", Try.success(entities(entity("IBM", "Organization"), entity("Evil", "X`Y"))));
+        chunkResponds("chunk-b", Try.success(entities(entity(" ibm", "Organization"), entity("IBM", "Product"))));
+        chunkResponds("chunk-c", Try.failure(new IllegalStateException("llm down")));
+
+        val result = service.extractEntities(chunks("chunk-a", "chunk-b", "chunk-c"));
+
+        assertThat(result.entities()).extracting(ExtractedEntity::label).containsExactly("Organization", "Product");
+        assertThat(result.failedChunks()).isEqualTo(1);
+        verifyNoInteractions(writer);
+    }
+
+    @Test
+    void extractEntitiesOfNoChunksMakesNoCalls() {
+        assertThat(service.extractEntities(List.empty()).entities()).isEmpty();
+        verifyNoInteractions(prompter, writer);
+    }
+
+    @Test
+    void promptSteersTowardThePreferredLabelsAndFullNames() {
+        chunkResponds("chunk-a", Try.success(entities()));
+
+        service.extractEntities(chunks("chunk-a"));
+
+        val captor = ArgumentCaptor.forClass(Prompt.class);
+        verify(prompter).callWithRetry(captor.capture());
+        assertThat(captor.getValue().getContents())
+                .contains("Person, Organization, Location, Event, Legislation, Award, Publication, Work, Product, Technology, Concept")
+                .contains("Thomas J. Watson Jr.");
     }
 
     @Test

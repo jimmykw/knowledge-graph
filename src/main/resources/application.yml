@@ -19,6 +19,14 @@ app:
     # endpoint to be scored. Advisory only.
     enabled: true
     max-evidence-chars: 8000
+  resolution:
+    # Entity resolution on upload. On in this file (the code treats a missing flag as off). When enabled, each new entity is
+    # matched against the whole graph before it is written; ambiguous matches send entity names, descriptions and neighbour
+    # edge names to the extraction model (same provider and kind of data as extraction). Off = the old apoc.merge.node path.
+    enabled: true
+    candidate-limit: 5
+    min-fulltext-score: 1.0
+    batch-size: 20
   models:
     extract:
       # Active: OpenRouter (OpenAI-compatible) for faster, genuinely-parallel extraction.

@@ -13,10 +13,10 @@ import net.jimmykw.knowledgegraph.extract.ExtractionRecords.ExtractedEntity;
 @Slf4j
 public final class CanonicalIndex {
 
-    private final HashMap<Tuple2<String, String>, Long> byKey;
+    private final HashMap<Tuple2<String, String>, String> byKey;
     private final List<ExtractedEntity> entities;
 
-    private CanonicalIndex(HashMap<Tuple2<String, String>, Long> byKey, List<ExtractedEntity> entities) {
+    private CanonicalIndex(HashMap<Tuple2<String, String>, String> byKey, List<ExtractedEntity> entities) {
         this.byKey = byKey;
         this.entities = entities;
     }
@@ -25,7 +25,7 @@ public final class CanonicalIndex {
         return new CanonicalIndex(HashMap.empty(), List.empty());
     }
 
-    public CanonicalIndex put(ExtractedEntity entity, long nodeId) {
+    public CanonicalIndex put(ExtractedEntity entity, String nodeId) {
         val key = Tuple.of(EntityNormalizer.normalize(entity.name()), entity.label());
         if (byKey.containsKey(key)) {
             return this;
@@ -33,7 +33,7 @@ public final class CanonicalIndex {
         return new CanonicalIndex(byKey.put(key, nodeId), entities.append(entity));
     }
 
-    public Option<Long> lookup(String name, String label) {
+    public Option<String> lookup(String name, String label) {
         val exact = byKey.get(Tuple.of(EntityNormalizer.normalize(name), label));
         if (exact.isDefined()) {
             return exact;

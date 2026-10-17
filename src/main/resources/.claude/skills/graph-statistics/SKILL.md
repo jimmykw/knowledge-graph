@@ -23,7 +23,11 @@ rather than a specific entity. Common phrasings:
 
 - Entity nodes have a `label` property (the Neo4j label is dynamic, but the
   human-readable label is also stored as the `label` property).
-- `:Document` nodes track ingested PDFs (`hash`, `filename`, `uploadedAt`).
+- `:Document` nodes track ingested PDFs (`hash`, `filename`, `uploadedAt`) and point at
+  the entities each one mentions with `MENTIONS` edges. Those edges are provenance, not
+  facts: leave them out of relationship tallies.
+- Entity nodes also carry a shared `:Entity` label; count by the `label` property, not
+  by Neo4j labels, so it does not show up as a category.
 - The schema (labels and relationship types) can be retrieved via the `getGraphSchema`
   tool — use it before running count queries so you only reference real labels.
 
@@ -50,7 +54,7 @@ ORDER BY count DESC
 ### Count by relationship type
 
 ```cypher
-MATCH ()-[r]->()
+MATCH ()-[r]->() WHERE type(r) <> 'MENTIONS'
 RETURN type(r) AS relType, count(r) AS count
 ORDER BY count DESC
 ```
@@ -66,8 +70,8 @@ ORDER BY d.uploadedAt DESC
 ### Count relationships for a specific entity
 
 ```cypher
-MATCH (e) WHERE e.name_norm = toLower($name)
-MATCH (e)-[r]-()
+MATCH (e) WHERE (e.name_norm = toLower($name) OR toLower($name) IN e.aliases_norm)
+MATCH (e)-[r]-() WHERE type(r) <> 'MENTIONS'
 RETURN type(r) AS relType, count(r) AS count
 ORDER BY count DESC
 ```

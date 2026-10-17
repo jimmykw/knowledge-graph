@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import net.jimmykw.knowledgegraph.exception.Neo4jUnavailableException;
+import net.jimmykw.knowledgegraph.graph.Neo4jGraphWriter;
 
 import io.vavr.control.Try;
 import lombok.extern.slf4j.Slf4j;
@@ -29,16 +30,24 @@ public class Neo4jConfig {
         return GraphDatabase.driver(uri, AuthTokens.basic(username, password));
     }
 
+    /** Probes APOC, then (with entity resolution on) creates the resolution schema; a schema failure is only logged. */
     @Bean
-    ApplicationRunner apocProbe(Driver driver) {
-        return args -> probeApoc(driver);
+    ApplicationRunner apocProbe(Driver driver, Neo4jGraphWriter writer, AppProperties appProperties) {
+        return args -> {
+            if (probeApoc(driver) && appProperties.resolution().enabled()) {
+                Try.run(writer::ensureSchema)
+                        .onFailure(cause -> log.warn("Entity resolution schema not created at startup ({}); it is retried on the first upload.",
+                                cause.getMessage()));
+            }
+        };
     }
 
-    private void probeApoc(Driver driver) {
-        Try.withResources(() -> driver.session())
+    private boolean probeApoc(Driver driver) {
+        return Try.withResources(() -> driver.session())
                 .of(session -> session.run("RETURN apoc.version() AS v").consume())
                 .onSuccess(ignored -> log.info("Neo4j connection established and APOC is available."))
-                .onFailure(this::handleProbeFailure);
+                .onFailure(this::handleProbeFailure)
+                .isSuccess();
     }
 
     private void handleProbeFailure(Throwable cause) {

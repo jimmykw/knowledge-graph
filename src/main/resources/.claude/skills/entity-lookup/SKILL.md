@@ -3,8 +3,9 @@ name: entity-lookup
 description: Use when the user asks about a specific entity by name — "tell me about X",
   "what is X", "who is X", "find X", "find information on X", "what does the graph say
   about X". Teaches case-insensitive matching against the name_norm property
-  (trim + lowercase) with a CONTAINS fuzzy fallback, and the answer shape: canonical
-  name, label, description, then related entities. Do NOT use for verb-directed
+  (trim + lowercase) and the aliases_norm list of other names, with a CONTAINS fuzzy
+  fallback, and the answer shape: canonical name, label, description, then related
+  entities. Do NOT use for verb-directed
   questions ("what did X invent", "who does X manage", "what does X create") — those
   belong to the neighborhood-exploration skill.
 ---
@@ -29,9 +30,13 @@ Entity nodes have these properties:
 
 - `name` — display name (original casing from the source PDF)
 - `name_norm` — normalized key: **trim + lowercase**. This is the match target.
+- `aliases` / `aliases_norm` — every name the entity has been seen under (for example
+  "IBM" and "International Business Machines"), as written / normalized. Match
+  `aliases_norm` too, so any of its names finds the entity.
 - `label` — the Neo4j label (dynamic, e.g. Person, Organization, Concept)
-- `description` — short description extracted from the source
-- `source_doc` — hash of the source `:Document` node
+- `description` — short description from the first document that mentioned it
+- `(:Document)-[:MENTIONS {name, description}]->(e)` — each document that mentions the
+  entity, with the name and description as that document wrote them
 
 ## Cypher patterns
 
@@ -39,8 +44,8 @@ Entity nodes have these properties:
 
 ```cypher
 MATCH (e)
-WHERE e.name_norm = toLower($name) AND e.name IS NOT NULL
-RETURN e.name AS name, e.label AS label, e.description AS description
+WHERE (e.name_norm = toLower($name) OR toLower($name) IN e.aliases_norm) AND e.name IS NOT NULL
+RETURN e.name AS name, e.label AS label, e.description AS description, e.aliases AS aliases
 LIMIT 1
 ```
 
@@ -52,7 +57,9 @@ Broaden to a substring match on `name_norm`:
 
 ```cypher
 MATCH (e)
-WHERE e.name_norm CONTAINS toLower($name) AND e.name IS NOT NULL
+WHERE (e.name_norm CONTAINS toLower($name)
+       OR any(alias IN coalesce(e.aliases_norm, []) WHERE alias CONTAINS toLower($name)))
+  AND e.name IS NOT NULL
 RETURN e.name AS name, e.label AS label, e.description AS description
 ORDER BY size(e.name_norm)
 LIMIT 5
@@ -68,7 +75,8 @@ The label guess may be wrong — the entity could exist under a different label.
 
 ## Answer shape
 
-1. Lead with the canonical `name` (original casing) and `label`.
+1. Lead with the canonical `name` (original casing) and `label`; mention other names
+   from `aliases` when the user asked by one of them.
 2. Quote or paraphrase the `description` directly — do not invent details beyond it.
 3. If the description is empty or sparse, say so explicitly rather than fabricating.
 4. If multiple fuzzy matches returned, list the top candidates and ask the user

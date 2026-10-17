@@ -25,7 +25,11 @@ to X?") — that is the `neighborhood-exploration` skill.
 
 ## Graph conventions
 
-- Entity nodes match on `name_norm` (trim + lowercase). Use `toLower($name)`.
+- Entity nodes match on `name_norm` (trim + lowercase) or any of their other names in
+  `aliases_norm`. Use `toLower($name)`.
+- `:Document` nodes link to every entity they mention (`MENTIONS`). A path through a
+  document only says both entities appear in the same PDF, so exclude documents from
+  every path with `none(n IN nodes(path) WHERE n:Document)`.
 - Relationships carry a `description` property — include it to explain each hop.
 - Relationship types and node labels are dynamic; never hard-code them.
 - Paths can be long; cap the variable-length depth to keep results bounded.
@@ -35,9 +39,10 @@ to X?") — that is the `neighborhood-exploration` skill.
 ### Shortest path between two entities
 
 ```cypher
-MATCH (start) WHERE start.name_norm = toLower($startName)
-MATCH (end) WHERE end.name_norm = toLower($endName)
+MATCH (start) WHERE (start.name_norm = toLower($startName) OR toLower($startName) IN start.aliases_norm)
+MATCH (end) WHERE (end.name_norm = toLower($endName) OR toLower($endName) IN end.aliases_norm)
 MATCH path = shortestPath((start)-[*..5]-(end))
+WHERE none(n IN nodes(path) WHERE n:Document)
 RETURN [node IN nodes(path) | node.name] AS nodeNames,
        [r IN relationships(path) | type(r)] AS relTypes,
        [r IN relationships(path) | r.description] AS relDescriptions
@@ -49,9 +54,10 @@ it (e.g. `..3`) if the graph is large.
 ### All simple paths up to a depth
 
 ```cypher
-MATCH (start) WHERE start.name_norm = toLower($startName)
-MATCH (end) WHERE end.name_norm = toLower($endName)
+MATCH (start) WHERE (start.name_norm = toLower($startName) OR toLower($startName) IN start.aliases_norm)
+MATCH (end) WHERE (end.name_norm = toLower($endName) OR toLower($endName) IN end.aliases_norm)
 MATCH path = (start)-[*..4]-(end)
+WHERE none(n IN nodes(path) WHERE n:Document)
 RETURN [node IN nodes(path) | node.name] AS nodeNames,
        [r IN relationships(path) | type(r)] AS relTypes
 LIMIT 10

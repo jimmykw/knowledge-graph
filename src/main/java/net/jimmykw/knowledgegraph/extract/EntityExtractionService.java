@@ -17,6 +17,7 @@ import net.jimmykw.knowledgegraph.graph.CanonicalIndex;
 import net.jimmykw.knowledgegraph.graph.CypherIdentifiers;
 import net.jimmykw.knowledgegraph.graph.EntityNormalizer;
 import net.jimmykw.knowledgegraph.graph.Neo4jGraphWriter;
+import net.jimmykw.knowledgegraph.graph.PreferredLabels;
 
 import io.vavr.Tuple;
 import io.vavr.Tuple2;
@@ -31,18 +32,40 @@ import lombok.val;
 @Slf4j
 public class EntityExtractionService {
 
-    public record Pass1Result(CanonicalIndex canonicalIndex, int nodeCount,
-                              io.vavr.collection.Map<String, Integer> countsByLabel, int failedChunks) {
+    /**
+     * {@code nodeCount} = entities written by this upload. The last three are zero unless entity resolution wrote them;
+     * {@code nodeCount} is then {@code entitiesCreated + entitiesMerged}.
+     */
+    public record Pass1Result(CanonicalIndex canonicalIndex, int nodeCount, io.vavr.collection.Map<String, Integer> countsByLabel,
+                              int failedChunks, int entitiesCreated, int entitiesMerged, int unresolvedEntities) {
+
+        public Pass1Result(CanonicalIndex canonicalIndex, int nodeCount, io.vavr.collection.Map<String, Integer> countsByLabel,
+                           int failedChunks) {
+            this(canonicalIndex, nodeCount, countsByLabel, failedChunks, 0, 0, 0);
+        }
     }
 
-    private static final String SYSTEM_PROMPT = """
+    /** Pass 1 output before anything is written: valid entities deduped on (normalized name, label), in first-seen order. */
+    public record ExtractedEntities(List<ExtractionRecords.ExtractedEntity> entities, int failedChunks) {
+    }
+
+    static final String SYSTEM_PROMPT = """
             You are an information-extraction engine. From the supplied text, extract the salient
-            entities (people, organizations, places, concepts, events, technologies, etc.). Choose
-            a concise, free-form label for each entity (for example Person, Organization, Location,
-            Concept, Event, Technology). Ignore relationships for now and only emit entities. Each
-            entity must have a name, a label, and a short description grounded in the text. If the
-            text contains no entities, return empty lists.
-            """;
+            entities (people, organizations, places, concepts, events, technologies, etc.). Ignore
+            relationships for now and only emit entities. Each entity must have a name, a label, and
+            a short description grounded in the text. If the text contains no entities, return empty
+            lists.
+
+            Labels: use one of these preferred labels whenever one fits:
+            %s.
+            Only when none of them fits, choose a concise new label in the same style (singular,
+            capitalized, for example Medical Instrument). Never use a plural or a synonym of a
+            preferred label (use Location, not Place; Person, not People).
+
+            Names: emit the fullest unambiguous name as it appears in the text, for example
+            "Thomas J. Watson Jr.", never "Watson" alone when the text says which Watson, and
+            "International Business Machines Corporation" when the text spells it out.
+            """.formatted(PreferredLabels.RANKED.mkString(", "));
 
     private final ExtractionPrompter prompter;
     private final Neo4jGraphWriter writer;
@@ -55,9 +78,35 @@ public class EntityExtractionService {
         this.executor = Executors.newFixedThreadPool(appProperties.models().extract().poolSize());
     }
 
+    /** Extracts and writes the entities with {@code apoc.merge.node} (the path used when entity resolution is off). */
     public Pass1Result extract(List<Document> chunks, String hash) {
         if (chunks.isEmpty()) {
             return new Pass1Result(CanonicalIndex.empty(), 0, HashMap.empty(), 0);
+        }
+        val extracted = extractEntities(chunks);
+        val uniqueEntities = extracted.entities();
+
+        val writeStart = System.nanoTime();
+        val idsByIndex = writer.mergeEntities(uniqueEntities, hash);
+        val counts = uniqueEntities.foldLeft(HashMap.<String, Integer>empty(),
+                (acc, entity) -> acc.put(entity.label(), acc.getOrElse(entity.label(), 0) + 1));
+        writer.recordSchema(counts.keySet(), HashSet.empty());
+        log.info("Pass 1: {} entit(ies) written to Neo4j in {}ms", uniqueEntities.length(),
+                (System.nanoTime() - writeStart) / 1_000_000L);
+
+        val canonicalIndex = uniqueEntities.zipWithIndex().foldLeft(CanonicalIndex.empty(),
+                (acc, pair) -> acc.put(pair._1, nodeId(idsByIndex, pair)));
+        uniqueEntities.zipWithIndex().forEach(pair -> log.info("Created node: '{}' [{}] (id={})",
+                pair._1.name(), pair._1.label(), nodeId(idsByIndex, pair)));
+        log.info("Pass 1 complete: {} entit(ies) created, {} failed chunk(s)", uniqueEntities.length(), extracted.failedChunks());
+
+        return new Pass1Result(canonicalIndex, uniqueEntities.length(), counts, extracted.failedChunks());
+    }
+
+    /** Runs the per-chunk LLM calls, validates and dedupes the entities; writes nothing. */
+    public ExtractedEntities extractEntities(List<Document> chunks) {
+        if (chunks.isEmpty()) {
+            return new ExtractedEntities(List.empty(), 0);
         }
 
         val total = chunks.length();
@@ -91,30 +140,14 @@ public class EntityExtractionService {
                 entityPartition._1.length(), entityPartition._2.length());
 
         val allEntities = entityPartition._1;
-
         val deduped = allEntities.foldLeft(
                 Tuple.of(HashSet.<Tuple2<String, String>>empty(), List.<ExtractionRecords.ExtractedEntity>empty()),
                 EntityExtractionService::dedupeEntity);
         val uniqueEntities = deduped._2.reverse();
+        log.info("Pass 1: {} unique entit(ies), {} duplicate(s) dropped, {} failed chunk(s)",
+                uniqueEntities.length(), allEntities.length() - uniqueEntities.length(), failedChunks);
 
-        val writeStart = System.nanoTime();
-        val idsByIndex = writer.mergeEntities(uniqueEntities, hash);
-        val counts = uniqueEntities.foldLeft(HashMap.<String, Integer>empty(),
-                (acc, entity) -> acc.put(entity.label(), acc.getOrElse(entity.label(), 0) + 1));
-        writer.recordSchema(counts.keySet(), HashSet.empty());
-        log.info("Pass 1: {} entit(ies) written to Neo4j in {}ms", uniqueEntities.length(),
-                (System.nanoTime() - writeStart) / 1_000_000L);
-
-        val canonicalIndex = uniqueEntities.zipWithIndex().foldLeft(CanonicalIndex.empty(),
-                (acc, pair) -> acc.put(pair._1, nodeId(idsByIndex, pair)));
-        uniqueEntities.zipWithIndex().forEach(pair -> log.info("Created node: '{}' [{}] (id={})",
-                pair._1.name(), pair._1.label(), nodeId(idsByIndex, pair)));
-
-        val entitiesNotCreated = allEntities.length() - uniqueEntities.length();
-        log.info("Pass 1 complete: {} entit(ies) created, {} not created (duplicate), {} failed chunk(s)",
-                uniqueEntities.length(), entitiesNotCreated, failedChunks);
-
-        return new Pass1Result(canonicalIndex, uniqueEntities.length(), counts, failedChunks);
+        return new ExtractedEntities(uniqueEntities, failedChunks);
     }
 
     private static void logProgress(AtomicInteger completed, int total,
@@ -142,7 +175,7 @@ public class EntityExtractionService {
         return Tuple.of(acc._1.add(key), acc._2.prepend(entity));
     }
 
-    private static long nodeId(Map<Integer, Long> idsByIndex,
+    private static String nodeId(Map<Integer, String> idsByIndex,
                                Tuple2<ExtractionRecords.ExtractedEntity, Integer> pair) {
         return idsByIndex.get(pair._2)
                 .getOrElseThrow(() -> new IllegalStateException(

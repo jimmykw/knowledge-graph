@@ -46,7 +46,7 @@ class ChatServiceJudgeTest {
 
     private ChatService service(Option<RouteDecision> route, AnswerJudge judge) {
         QuestionRouter router = (prompt, history) -> route;
-        return new ChatService(agent, direct, new AppProperties(0, 0, null, null, null, null), memory, router, judge);
+        return new ChatService(agent, direct, new AppProperties(0, 0, null, null, null, null, null), memory, router, judge);
     }
 
     @Test

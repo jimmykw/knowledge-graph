@@ -62,6 +62,10 @@ test('formatIngestSummary pluralises and lists labels, types and failed chunks',
     'Ingested a.pdf — 3 nodes (2 Person, 1 Org), 1 relationship (1 USES), 2 chunks failed');
   assert.equal(c.formatIngestSummary({ nodeCount: 1, relationshipCount: 0, failedChunks: 1 }, 'a.pdf'),
     'Ingested a.pdf — 1 node, 0 relationships, 1 chunk failed');
+  assert.equal(c.formatIngestSummary({ nodeCount: 4, relationshipCount: 2, entitiesMerged: 3, unresolvedEntities: 1, failedChunks: 0 }, 'a.pdf'),
+    'Ingested a.pdf — 4 nodes, 2 relationships, 3 merged into existing, 1 unresolved');
+  assert.equal(c.formatIngestSummary({ nodeCount: 2, relationshipCount: 0, entitiesMerged: 0, unresolvedEntities: 0 }, 'a.pdf'),
+    'Ingested a.pdf — 2 nodes, 0 relationships');
   assert.equal(c.formatIngestSummary(null, 'a.pdf'), 'Uploaded a.pdf.');
   assert.match(c.formatIngestSummary({ nodeCount: 0 }, 'a.pdf'), /extracted 0 nodes/);
 });

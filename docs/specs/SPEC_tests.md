@@ -116,6 +116,19 @@ Add a layered automated test suite for the code that has little or no direct cov
 - `trace.js`: `summary` (total rows across queries, singular/plural), `queryMeta`/`queryMetaEmpty`, `shownIndex` (most rows, later query wins ties, picked tab), `queriesWithRows`, old responses without `evidence`, `qualityChip`/`qualityTitle`/`qualityIsLow`, `routeBadge`, `columnList`, `cappedRows` (50), `renderCell` escaping (`<script>` and quotes escaped, objects rendered as JSON), `kgEscape`.
 - `app.js` (`chatApp`): `buildTrace` mapping (including `evidence`), `chatErrorMessage` per HTTP status (including the new upload 400 message), plus the other pure helpers found when reading the file.
 
+### Entity resolution (added with `SPEC_entity_resolution.md`)
+Node ids are `elementId` strings throughout (`CanonicalIndex`, `ResolvedRelationship`, writer return values), so fixtures use ids like `"id-7"` / `"4:db:1"`.
+
+| Class | Cases |
+|-------|-------|
+| `EntityNormalizer.matchKey`, `PreferredLabels`, `FulltextQueries` | suffix / punctuation / leading "the" stripping and the empty fallback; rank order, custom labels just above Concept, tie keeps the current label; Lucene escaping, lowercased operators, no query for symbol-only names |
+| `ResolutionClassifier`, `ResolutionPlanner` | every classification row of the spec (sole exact same-label merge, cross-label / several exact / fuzzy-only to the LLM, in-batch groups); one update per target node, best label, aliases union, counts |
+| `ResolutionPrompter` | stubbed `ChatClient`: refs only (no element ids) in the prompt; valid match with canonical name; unknown canonical name kept out; null match -> new; unoffered or missing ref -> unresolved; group linking; unparseable reply fails the batch |
+| `EntityResolutionService` | mocked writer/prompter: probes, exact merge without LLM, LLM decisions, failed / throwing / incomplete batch -> unresolved, batching, schema ensured once, the lock serializes concurrent uploads and is released on failure |
+| `GraphController`, `UploadFlowTest`, `app.js` | resolution flag routes pass 1 through the resolver; flow: all-new upload, exact merge with no resolution call, cross-label LLM merge, failing resolution call -> unresolved; UI message shows merged / unresolved counts |
+| Cleanup (`Clustering`, `ClusterPrompter`, `CleanupPlanner`, `CleanupReports`) | exact vs fuzzy clusters and the size cap; untrusted groups go to review; automatic vs LLM entries, survivor and label rules; plan.json round trip and markdown |
+| `EntityResolutionWriterIT`, `ResolveGraphIT` (real Neo4j) | schema objects online; create/update/`MENTIONS` in one transaction with label swap and alias union; exact, alias, match-key and full-text candidates with neighbours; top types/names ignore `:Entity` / `MENTIONS`; two uploads resolving against each other; plan migrates idempotently and merges nothing; apply merges nodes, relationships and mentions and removes self-loops; apply refuses without backup flag or plan and when a planned node changed or disappeared |
+
 ### Production changes (small fixes only, Phase A)
 1. **External/dynamic Cypher guard.** `GraphTools` gets a second pattern, checked after `WRITE_PATTERN`:
    ```java

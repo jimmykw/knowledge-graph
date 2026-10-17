@@ -3,8 +3,9 @@ name: source-attribution
 description: Use when the user asks where an entity or fact comes from, wants a
   citation, or asks which document mentions X — "where does X come from", "cite the
   source for X", "which document mentions X", "what is the source of X". Teaches
-  joining entity nodes to their :Document node via the source_doc property and
-  returning filename and upload timestamp.
+  following (:Document)-[:MENTIONS]->(entity) edges to every document that mentions
+  an entity (with that document's own description), falling back to the source_doc
+  property, and returning filename and upload timestamp.
 ---
 
 # Source Attribution
@@ -22,39 +23,46 @@ which source document it was extracted from. Common phrasings:
 
 ## Graph conventions
 
-- Entity nodes have a `source_doc` property holding the hash of the source
-  `:Document` node.
+- `(:Document)-[m:MENTIONS]->(e)` links every document that mentions an entity to it.
+  `m.name` is the name as that document wrote it and `m.description` that document's
+  description, so one entity can cite several documents, each with its own wording.
 - `:Document` nodes have: `hash`, `filename`, `uploadedAt`.
-- Match entities on `name_norm` (trim + lowercase). Use `toLower($name)`.
-- A single entity may originate from one document; multiple entities may share the
-  same `source_doc`.
+- Entity nodes also keep `source_doc`, the hash of the first document that mentioned
+  them. Use it only as a fallback for older nodes that have no `MENTIONS` edge.
+- Match entities on `name_norm` (trim + lowercase) or any of their other names in
+  `aliases_norm`. Use `toLower($name)`.
 
 ## Cypher patterns
 
-### Source of a single entity
+### Every document that mentions an entity
 
 ```cypher
-MATCH (e) WHERE e.name_norm = toLower($name)
-MATCH (d:Document {hash: e.source_doc})
+MATCH (e) WHERE (e.name_norm = toLower($name) OR toLower($name) IN e.aliases_norm)
+OPTIONAL MATCH (d:Document)-[m:MENTIONS]->(e)
+OPTIONAL MATCH (fallback:Document {hash: e.source_doc})
+WITH e, collect(DISTINCT {file: d.filename, uploadedAt: d.uploadedAt, nameInDoc: m.name,
+                          description: m.description}) AS mentions, fallback
 RETURN e.name AS entity, e.label AS label,
-       d.filename AS sourceFile, d.uploadedAt AS uploadedAt
+       [x IN mentions WHERE x.file IS NOT NULL] AS documents,
+       fallback.filename AS fallbackSourceFile
 ```
 
-### All entities from a given document
+When `documents` is empty, cite `fallbackSourceFile` (the `source_doc` document).
+
+### All entities a given document mentions
 
 ```cypher
-MATCH (d:Document {filename: $filename})
-MATCH (e) WHERE e.source_doc = d.hash
-RETURN e.name AS entity, e.label AS label, e.description AS description
+MATCH (d:Document {filename: $filename})-[m:MENTIONS]->(e)
+RETURN e.name AS entity, e.label AS label, m.name AS nameInDoc, m.description AS description
 ORDER BY e.label, e.name
 ```
 
-### Documents that mention a set of related entities
+### Documents behind an entity's relationships
 
 ```cypher
-MATCH (e) WHERE e.name_norm = toLower($name)
-MATCH (e)-[r]-(neighbor)
-MATCH (d:Document {hash: neighbor.source_doc})
+MATCH (e) WHERE (e.name_norm = toLower($name) OR toLower($name) IN e.aliases_norm)
+MATCH (e)-[r]-(neighbor) WHERE NOT neighbor:Document
+MATCH (d:Document)-[:MENTIONS]->(neighbor)
 RETURN DISTINCT d.filename AS sourceFile, d.uploadedAt AS uploadedAt
 ```
 
@@ -63,13 +71,12 @@ Use this when the user asks about the sources backing an entity's relationships.
 ## Answer shape
 
 1. Name the entity and its label.
-2. Cite the source `filename` and `uploadedAt` timestamp.
-3. If the entity's `source_doc` has no matching `:Document` node, say the source is
-   unknown rather than inventing one.
-4. When listing multiple sources, group by document and note which entities each
-   contributed.
-5. Quote or paraphrase the entity `description` so the user can locate the relevant
-   passage in the source PDF.
+2. Cite every document that mentions it, with `filename` and `uploadedAt`, and quote or
+   paraphrase that document's `description` from the `MENTIONS` edge so the user can
+   find the passage.
+3. If a document wrote the entity under another name (`nameInDoc`), say so.
+4. If there are no `MENTIONS` edges and the `source_doc` document is missing too, say the
+   source is unknown rather than inventing one.
 
 ## Read-only constraint
 

@@ -25,8 +25,8 @@ public final class ExtractionRecords {
     }
 
     public record ResolvedRelationship(
-            long sourceId,
-            long targetId,
+            String sourceId,
+            String targetId,
             String type,
             String description,
             String sourceName,

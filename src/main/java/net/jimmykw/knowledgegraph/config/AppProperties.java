@@ -5,7 +5,8 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties(prefix = "app")
-public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models models, Routing routing, Judge judge) {
+public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models models, Routing routing, Judge judge,
+                            Resolution resolution) {
 
     public record Chat(int resultRowLimit, int maxPromptLength, int maxToolCallRounds, long queryTimeoutMs,
                         int historyWindow) {
@@ -40,6 +41,21 @@ public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models mod
         public Judge {
             if (maxEvidenceChars <= 0) {
                 maxEvidenceChars = 8000;
+            }
+        }
+    }
+
+    /** Entity resolution on upload: candidates per entity, the full-text score floor, and entities per LLM batch. */
+    public record Resolution(boolean enabled, int candidateLimit, double minFulltextScore, int batchSize) {
+        public Resolution {
+            if (candidateLimit <= 0) {
+                candidateLimit = 5;
+            }
+            if (minFulltextScore <= 0) {
+                minFulltextScore = 1.0;
+            }
+            if (batchSize <= 0) {
+                batchSize = 20;
             }
         }
     }
@@ -97,5 +113,6 @@ public record AppProperties(int maxPages, int chunkTokens, Chat chat, Models mod
         if (models == null) { models = new Models(null, null); }
         if (routing == null) { routing = new Routing(false, 0); }
         if (judge == null) { judge = new Judge(false, 0); }
+        if (resolution == null) { resolution = new Resolution(false, 0, 0, 0); }
     }
 }

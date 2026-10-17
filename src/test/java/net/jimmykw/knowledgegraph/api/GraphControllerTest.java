@@ -2,6 +2,8 @@ package net.jimmykw.knowledgegraph.api;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -12,16 +14,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.vavr.collection.HashMap;
 import io.vavr.collection.List;
 import lombok.val;
+import net.jimmykw.knowledgegraph.config.AppProperties;
 import net.jimmykw.knowledgegraph.exception.InvalidFileException;
 import net.jimmykw.knowledgegraph.exception.MaxPagesExceededException;
 import net.jimmykw.knowledgegraph.exception.Neo4jUnavailableException;
 import net.jimmykw.knowledgegraph.extract.EntityExtractionService;
+import net.jimmykw.knowledgegraph.extract.EntityExtractionService.ExtractedEntities;
 import net.jimmykw.knowledgegraph.extract.EntityExtractionService.Pass1Result;
+import net.jimmykw.knowledgegraph.extract.ExtractionRecords.ExtractedEntity;
 import net.jimmykw.knowledgegraph.extract.RelationshipExtractionService;
 import net.jimmykw.knowledgegraph.extract.RelationshipExtractionService.Pass2Result;
 import net.jimmykw.knowledgegraph.graph.CanonicalIndex;
 import net.jimmykw.knowledgegraph.ingest.PdfIngestionService;
 import net.jimmykw.knowledgegraph.ingest.PdfIngestionService.IngestionResult;
+import net.jimmykw.knowledgegraph.resolve.EntityResolutionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -36,6 +42,7 @@ class GraphControllerTest {
     private PdfIngestionService ingestion;
     private EntityExtractionService entities;
     private RelationshipExtractionService relationships;
+    private EntityResolutionService resolution;
     private MockMvc mvc;
 
     @BeforeEach
@@ -43,7 +50,13 @@ class GraphControllerTest {
         ingestion = mock(PdfIngestionService.class);
         entities = mock(EntityExtractionService.class);
         relationships = mock(RelationshipExtractionService.class);
-        mvc = MockMvcBuilders.standaloneSetup(new GraphController(ingestion, entities, relationships))
+        resolution = mock(EntityResolutionService.class);
+        mvc = mvc(false);
+    }
+
+    private MockMvc mvc(boolean resolutionEnabled) {
+        val props = new AppProperties(0, 0, null, null, null, null, new AppProperties.Resolution(resolutionEnabled, 0, 0, 0));
+        return MockMvcBuilders.standaloneSetup(new GraphController(ingestion, entities, relationships, resolution, props))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .build();
     }
@@ -117,7 +130,31 @@ class GraphControllerTest {
                 .andExpect(jsonPath("$.relationshipCount").value(3))
                 .andExpect(jsonPath("$.countsByLabel.Person").value(5))
                 .andExpect(jsonPath("$.countsByType.USES").value(3))
-                .andExpect(jsonPath("$.failedChunks").value(3));
+                .andExpect(jsonPath("$.failedChunks").value(3))
+                .andExpect(jsonPath("$.entitiesCreated").value(0))
+                .andExpect(jsonPath("$.entitiesMerged").value(0))
+                .andExpect(jsonPath("$.unresolvedEntities").value(0));
+        verifyNoInteractions(resolution);
+    }
+
+    @Test
+    void withResolutionOnPassOneOnlyExtractsAndTheResolverWrites() throws Exception {
+        val chunks = List.of(new Document("text"));
+        val index = CanonicalIndex.empty();
+        val extracted = new ExtractedEntities(List.of(new ExtractedEntity("IBM", "Organization", "d")), 1);
+        when(ingestion.ingest(any())).thenReturn(new IngestionResult("7", "hash", PdfIngestionService.STATUS_PROCESSED, chunks));
+        when(entities.extractEntities(chunks)).thenReturn(extracted);
+        when(resolution.resolve(extracted, "hash")).thenReturn(new Pass1Result(index, 5, HashMap.of("Person", 5), 1, 2, 3, 1));
+        when(relationships.extract(chunks, index, "hash")).thenReturn(new Pass2Result(0, HashMap.empty(), 0));
+
+        mvc(true).perform(multipart(URL).file(pdf("a.pdf", "application/pdf", new byte[] {1})))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nodeCount").value(5))
+                .andExpect(jsonPath("$.entitiesCreated").value(2))
+                .andExpect(jsonPath("$.entitiesMerged").value(3))
+                .andExpect(jsonPath("$.unresolvedEntities").value(1))
+                .andExpect(jsonPath("$.failedChunks").value(1));
+        verify(entities, never()).extract(any(), any());
     }
 
     @Test

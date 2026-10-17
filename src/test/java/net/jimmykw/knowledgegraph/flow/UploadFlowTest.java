@@ -8,6 +8,8 @@ import static net.jimmykw.knowledgegraph.testsupport.ExtractionJson.relationship
 import static net.jimmykw.knowledgegraph.testsupport.FakeLlmServer.completion;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -18,8 +20,12 @@ import io.vavr.collection.List;
 import io.vavr.control.Option;
 import lombok.val;
 import net.jimmykw.knowledgegraph.exception.Neo4jUnavailableException;
-import net.jimmykw.knowledgegraph.extract.ExtractionRecords.ExtractedEntity;
 import net.jimmykw.knowledgegraph.extract.ExtractionRecords.ResolvedRelationship;
+import net.jimmykw.knowledgegraph.resolve.ResolutionRecords.Candidate;
+import net.jimmykw.knowledgegraph.resolve.ResolutionRecords.EntityProbe;
+import net.jimmykw.knowledgegraph.resolve.ResolutionRecords.Mention;
+import net.jimmykw.knowledgegraph.resolve.ResolutionRecords.NewNode;
+import net.jimmykw.knowledgegraph.resolve.ResolutionRecords.ResolutionPlan;
 import net.jimmykw.knowledgegraph.testsupport.PdfFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,15 +35,34 @@ class UploadFlowTest extends AppFlowTestBase {
 
     private static final String PASS_1 = "Extract the entities";
     private static final String PASS_2 = "Canonical entities already discovered";
+    private static final String RESOLUTION = "Decide for each new entity";
 
     @BeforeEach
     void stubWriter() {
         when(writer.findDocumentId(anyString())).thenReturn(Option.none());
-        when(writer.mergeDocument(anyString(), anyString())).thenReturn(5L);
-        when(writer.mergeEntities(any(), anyString())).thenAnswer(invocation -> invocation.<List<ExtractedEntity>>getArgument(0)
-                .zipWithIndex().foldLeft(HashMap.<Integer, Long>empty(), (acc, pair) -> acc.put(pair._2, 100L + pair._2)));
+        when(writer.mergeDocument(anyString(), anyString())).thenReturn("4:doc:5");
+        when(writer.findCandidates(any(), anyInt(), anyDouble())).thenReturn(HashMap.empty());
+        when(writer.applyResolution(any(), anyString())).thenAnswer(invocation -> invocation.<ResolutionPlan>getArgument(0).mentions()
+                .toMap(Mention::idx, mention -> mention.target().fold(key -> "4:new:" + key, id -> id)));
         when(writer.mergeRelationships(any())).thenAnswer(invocation -> invocation.<List<ResolvedRelationship>>getArgument(0)
-                .zipWithIndex().foldLeft(HashMap.<Integer, Long>empty(), (acc, pair) -> acc.put(pair._2, 500L + pair._2)));
+                .zipWithIndex().foldLeft(HashMap.<Integer, String>empty(), (acc, pair) -> acc.put(pair._2, "4:rel:" + pair._2)));
+    }
+
+    /** Offers {@code candidate} for the probe whose name is {@code name}. */
+    private void graphHas(String name, Candidate candidate) {
+        when(writer.findCandidates(any(), anyInt(), anyDouble())).thenAnswer(invocation -> invocation.<List<EntityProbe>>getArgument(0)
+                .filter(probe -> probe.name().equals(name))
+                .toMap(EntityProbe::idx, probe -> List.of(candidate.withIdx(probe.idx()))));
+    }
+
+    private static Candidate node(String id, String name, String label) {
+        return new Candidate(0, id, name, label, name + " node", List.of(name), List.empty(), true);
+    }
+
+    private ResolvedRelationship writtenRelationship() {
+        val relCaptor = ArgumentCaptor.<List<ResolvedRelationship>>captor();
+        verify(writer).mergeRelationships(relCaptor.capture());
+        return relCaptor.getValue().head();
     }
 
     private void stubHappyExtraction() {
@@ -59,22 +84,76 @@ class UploadFlowTest extends AppFlowTestBase {
         assertThat(body.get("countsByLabel").get("Person").asInt()).isEqualTo(1);
         assertThat(body.get("countsByType").get("LEADS").asInt()).isEqualTo(1);
         assertThat(body.get("failedChunks").asInt()).isZero();
+        assertThat(body.get("entitiesCreated").asInt()).isEqualTo(2);
+        assertThat(body.get("entitiesMerged").asInt()).isZero();
+        assertThat(body.get("unresolvedEntities").asInt()).isZero();
 
-        val entityCaptor = ArgumentCaptor.<List<ExtractedEntity>>captor();
-        verify(writer).mergeEntities(entityCaptor.capture(), anyString());
-        assertThat(entityCaptor.getValue()).extracting(ExtractedEntity::name).containsExactly("IBM", "Thomas Watson");
-        val relCaptor = ArgumentCaptor.<List<ResolvedRelationship>>captor();
-        verify(writer).mergeRelationships(relCaptor.capture());
-        assertThat(relCaptor.getValue()).singleElement().satisfies(rel -> {
-            assertThat(rel.type()).isEqualTo("LEADS");
-            assertThat(rel.sourceId()).isEqualTo(101L);
-            assertThat(rel.targetId()).isEqualTo(100L);
+        val planCaptor = ArgumentCaptor.forClass(ResolutionPlan.class);
+        verify(writer).applyResolution(planCaptor.capture(), anyString());
+        assertThat(planCaptor.getValue().newNodes()).extracting(NewNode::name).containsExactly("IBM", "Thomas Watson");
+        verify(writer, never()).mergeEntities(any(), anyString());
+        val rel = writtenRelationship();
+        assertThat(rel.type()).isEqualTo("LEADS");
+        assertThat(rel.sourceId()).isEqualTo("4:new:1");
+        assertThat(rel.targetId()).isEqualTo("4:new:0");
+        assertThat(LLM.requestBodies().filter(requestBody -> requestBody.contains(RESOLUTION))).isEmpty();
+    }
+
+    @Test
+    void anExactSameLabelMatchMergesIntoTheExistingNodeWithoutAResolutionCall() {
+        stubHappyExtraction();
+        graphHas("IBM", node("4:db:1", "International Business Machines", "Organization"));
+
+        val reply = upload("history.pdf", "application/pdf", PdfFixtures.textPages(1));
+
+        assertThat(reply.status()).isEqualTo(200);
+        assertThat(reply.json().get("entitiesMerged").asInt()).isEqualTo(1);
+        assertThat(reply.json().get("entitiesCreated").asInt()).isEqualTo(1);
+        assertThat(reply.json().get("nodeCount").asInt()).isEqualTo(2);
+        assertThat(writtenRelationship().targetId()).isEqualTo("4:db:1");
+        assertThat(LLM.requestBodies().filter(requestBody -> requestBody.contains(RESOLUTION))).isEmpty();
+    }
+
+    @Test
+    void aCrossLabelMatchIsDecidedByTheResolutionModel() {
+        stubHappyExtraction();
+        graphHas("Thomas Watson", node("4:db:7", "Thomas J. Watson Sr.", "Technology"));
+        LLM.stubBodyContaining(5, completion("{\"decisions\": [{\"entity\": \"n1\", \"match\": \"c1\", "
+                + "\"canonicalName\": \"Thomas J. Watson Sr.\"}]}"), RESOLUTION);
+
+        val reply = upload("history.pdf", "application/pdf", PdfFixtures.textPages(1));
+
+        assertThat(reply.status()).isEqualTo(200);
+        assertThat(reply.json().get("entitiesMerged").asInt()).isEqualTo(1);
+        val planCaptor = ArgumentCaptor.forClass(ResolutionPlan.class);
+        verify(writer).applyResolution(planCaptor.capture(), anyString());
+        assertThat(planCaptor.getValue().updates()).singleElement().satisfies(update -> {
+            assertThat(update.name()).isEqualTo("Thomas J. Watson Sr.");
+            assertThat(update.label()).isEqualTo("Person");
+            assertThat(update.oldLabel()).isEqualTo("Technology");
         });
+        assertThat(writtenRelationship().sourceId()).isEqualTo("4:db:7");
+        assertThat(LLM.requestBodies().filter(requestBody -> requestBody.contains(RESOLUTION)))
+                .singleElement().satisfies(requestBody -> assertThat(requestBody).doesNotContain("4:db:7"));
+    }
+
+    @Test
+    void aFailingResolutionCallCreatesTheEntityAsNewAndTheUploadSucceeds() {
+        stubHappyExtraction();
+        graphHas("Thomas Watson", node("4:db:7", "Thomas J. Watson Sr.", "Technology"));
+        LLM.stubBodyContainingFails(5, 500, RESOLUTION);
+
+        val reply = upload("history.pdf", "application/pdf", PdfFixtures.textPages(1));
+
+        assertThat(reply.status()).isEqualTo(200);
+        assertThat(reply.json().get("unresolvedEntities").asInt()).isEqualTo(1);
+        assertThat(reply.json().get("entitiesCreated").asInt()).isEqualTo(2);
+        assertThat(reply.json().get("relationshipCount").asInt()).isEqualTo(1);
     }
 
     @Test
     void duplicateUploadMakesNoLlmCallsAndNoWrites() {
-        when(writer.findDocumentId(anyString())).thenReturn(Option.some(9L));
+        when(writer.findDocumentId(anyString())).thenReturn(Option.some("4:doc:9"));
 
         val reply = upload("history.pdf", "application/pdf", PdfFixtures.textPages(1));
 
@@ -82,7 +161,7 @@ class UploadFlowTest extends AppFlowTestBase {
         assertThat(reply.json().get("status").asString()).isEqualTo("SKIPPED_DUPLICATE");
         assertThat(reply.json().get("nodeCount").asInt()).isZero();
         assertThat(LLM.requestCount()).isZero();
-        verify(writer, never()).mergeEntities(any(), anyString());
+        verify(writer, never()).applyResolution(any(), anyString());
     }
 
     @Test

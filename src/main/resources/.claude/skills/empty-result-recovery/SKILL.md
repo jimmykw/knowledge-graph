@@ -24,17 +24,18 @@ If the query constrained a specific label that may be wrong, retry matching on
 `name_norm` alone without the label:
 
 ```cypher
-MATCH (e) WHERE e.name_norm = toLower($name)
+MATCH (e) WHERE (e.name_norm = toLower($name) OR toLower($name) IN e.aliases_norm)
 RETURN e.name AS name, e.label AS label, e.description AS description
 ```
 
 ### 2. Fall back to fuzzy substring match
 
-If the exact `name_norm` match returns nothing, broaden to a `CONTAINS` match and
-order by closeness:
+If the exact `name_norm` / `aliases_norm` match returns nothing, broaden to a
+`CONTAINS` match on the name and its aliases and order by closeness:
 
 ```cypher
-MATCH (e) WHERE e.name_norm CONTAINS toLower($name)
+MATCH (e) WHERE (e.name_norm CONTAINS toLower($name)
+       OR any(alias IN coalesce(e.aliases_norm, []) WHERE alias CONTAINS toLower($name)))
 RETURN e.name AS name, e.label AS label, e.description AS description
 ORDER BY size(e.name_norm)
 LIMIT 5
@@ -52,7 +53,7 @@ If the question is about relationships but the entity name is uncertain, query t
 relationship types directly:
 
 ```cypher
-MATCH ()-[r]->()
+MATCH ()-[r]->() WHERE type(r) <> 'MENTIONS'
 RETURN type(r) AS relType, count(r) AS count
 ORDER BY count DESC
 LIMIT 10

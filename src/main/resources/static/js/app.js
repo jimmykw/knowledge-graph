@@ -338,6 +338,12 @@ document.addEventListener('alpine:init', () => {
       if (types) {
         msg += ' (' + types + ')';
       }
+      if (body.entitiesMerged > 0) {
+        msg += ', ' + body.entitiesMerged + ' merged into existing';
+      }
+      if (body.unresolvedEntities > 0) {
+        msg += ', ' + body.unresolvedEntities + ' unresolved';
+      }
       if (body.failedChunks > 0) {
         msg += ', ' + body.failedChunks + ' chunk' + (body.failedChunks === 1 ? '' : 's') + ' failed';
       }

@@ -50,7 +50,10 @@ public class GraphTools {
     @Tool(description = "Execute a read-only Cypher query against the knowledge graph. "
             + "Returns JSON with rows, count, and truncated flag. "
             + "Write operations (CREATE, MERGE, SET, DELETE, REMOVE, DROP, CALL apoc.merge, CALL apoc.create) "
-            + "are blocked. Match entities on name_norm = toLower($name) for case-insensitive lookups.")
+            + "are blocked. Match entities case-insensitively, including their other names, with "
+            + "e.name_norm = toLower($name) OR toLower($name) IN e.aliases_norm. "
+            + "(:Document)-[:MENTIONS]->(entity) edges record which documents mention an entity; leave them out "
+            + "(WHERE NOT n:Document) when exploring an entity's relationships.")
     public String runReadCypher(String cypher) {
         if (cypher == null || cypher.isBlank()) {
             return errorJson("Cypher query must not be blank.");

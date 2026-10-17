@@ -41,7 +41,7 @@ class ChatServiceRoutingTest {
 
     private ChatService service(Option<RouteDecision> decision) {
         QuestionRouter router = (prompt, history) -> decision;
-        return new ChatService(client, direct, new AppProperties(0, 0, null, null, null, null), memory, router, new NoOpAnswerJudge());
+        return new ChatService(client, direct, new AppProperties(0, 0, null, null, null, null, null), memory, router, new NoOpAnswerJudge());
     }
 
     @Test
@@ -49,7 +49,7 @@ class ChatServiceRoutingTest {
         val decision = new RouteDecision(RouteIntent.CHITCHAT, 0.0, RouteStatus.BLOCKED);
         val untouched = mock(ChatClient.class);
         QuestionRouter router = (prompt, history) -> Option.of(decision);
-        val service = new ChatService(untouched, direct, new AppProperties(0, 0, null, null, null, null), memory, router, new NoOpAnswerJudge());
+        val service = new ChatService(untouched, direct, new AppProperties(0, 0, null, null, null, null, null), memory, router, new NoOpAnswerJudge());
         val response = service.chat("thanks!", "c1");
         assertThat(response.answer()).isEqualTo("direct answer");
         assertThat(response.route()).isEqualTo(decision);

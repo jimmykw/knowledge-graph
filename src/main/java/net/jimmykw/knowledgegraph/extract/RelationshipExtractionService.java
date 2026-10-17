@@ -63,11 +63,11 @@ public class RelationshipExtractionService {
             return new Pass2Result(0, HashMap.empty(), 0);
         }
 
-    val canonicalList = renderCanonicalList(canonicalIndex);
-    log.info("Pass 2: processing {} chunk(s) with {} canonical entities", chunks.length(), canonicalIndex.size());
-    log.info("Pass 2 canonical entities:\n{}", canonicalIndex.entities()
-            .map(entity -> "  " + entity.name() + " [" + entity.label() + "]")
-            .mkString("\n"));
+        val canonicalList = renderCanonicalList(canonicalIndex);
+        log.info("Pass 2: processing {} chunk(s) with {} canonical entities", chunks.length(), canonicalIndex.size());
+        log.info("Pass 2 canonical entities:\n{}", canonicalIndex.entities()
+                .map(entity -> "  " + entity.name() + " [" + entity.label() + "]")
+                .mkString("\n"));
 
         val total = chunks.length();
         val completed = new AtomicInteger(0);
@@ -104,7 +104,7 @@ public class RelationshipExtractionService {
         val allRelationships = relationshipPartition._1;
 
         val resolved = allRelationships.foldLeft(
-                Tuple.of(HashSet.<Tuple3<Long, Long, String>>empty(),
+                Tuple.of(HashSet.<Tuple3<String, String, String>>empty(),
                         List.<ExtractionRecords.ResolvedRelationship>empty()),
                 (acc, rel) -> resolveRelationship(acc, rel, canonicalIndex));
         val uniqueRelationships = resolved._2.reverse();
@@ -140,8 +140,8 @@ public class RelationshipExtractionService {
         }
     }
 
-    private static Tuple2<HashSet<Tuple3<Long, Long, String>>, List<ExtractionRecords.ResolvedRelationship>> resolveRelationship(
-            Tuple2<HashSet<Tuple3<Long, Long, String>>, List<ExtractionRecords.ResolvedRelationship>> acc,
+    private static Tuple2<HashSet<Tuple3<String, String, String>>, List<ExtractionRecords.ResolvedRelationship>> resolveRelationship(
+            Tuple2<HashSet<Tuple3<String, String, String>>, List<ExtractionRecords.ResolvedRelationship>> acc,
             ExtractionRecords.ExtractedRelationship rel, CanonicalIndex canonicalIndex) {
         return canonicalIndex.lookup(rel.sourceName(), rel.sourceLabel())
                 .flatMap(sourceId -> canonicalIndex.lookup(rel.targetName(), rel.targetLabel())
@@ -154,9 +154,9 @@ public class RelationshipExtractionService {
                 });
     }
 
-    private static Tuple2<HashSet<Tuple3<Long, Long, String>>, List<ExtractionRecords.ResolvedRelationship>> addResolved(
-            Tuple2<HashSet<Tuple3<Long, Long, String>>, List<ExtractionRecords.ResolvedRelationship>> acc,
-            ExtractionRecords.ExtractedRelationship rel, Tuple2<Long, Long> endpoints) {
+    private static Tuple2<HashSet<Tuple3<String, String, String>>, List<ExtractionRecords.ResolvedRelationship>> addResolved(
+            Tuple2<HashSet<Tuple3<String, String, String>>, List<ExtractionRecords.ResolvedRelationship>> acc,
+            ExtractionRecords.ExtractedRelationship rel, Tuple2<String, String> endpoints) {
         val key = Tuple.of(endpoints._1, endpoints._2, rel.type());
         if (acc._1.contains(key)) {
             log.debug("Skipped duplicate relationship: {} -[{}]-> {} (already created)",
@@ -168,7 +168,7 @@ public class RelationshipExtractionService {
         return Tuple.of(acc._1.add(key), acc._2.prepend(resolved));
     }
 
-    private static long relId(Map<Integer, Long> idsByIndex,
+    private static String relId(Map<Integer, String> idsByIndex,
                               Tuple2<ExtractionRecords.ResolvedRelationship, Integer> pair) {
         return idsByIndex.get(pair._2)
                 .getOrElseThrow(() -> new IllegalStateException(

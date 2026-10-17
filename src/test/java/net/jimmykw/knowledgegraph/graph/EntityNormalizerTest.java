@@ -29,4 +29,33 @@ class EntityNormalizerTest {
         val once = EntityNormalizer.normalize("  Big BLUE ");
         assertThat(EntityNormalizer.normalize(once)).isEqualTo(once);
     }
+
+    @Test
+    void matchKeyStripsPunctuationAndCorporateSuffixes() {
+        assertThat(EntityNormalizer.matchKey("Apple Inc.")).isEqualTo("apple");
+        assertThat(EntityNormalizer.matchKey("Apple")).isEqualTo("apple");
+        assertThat(EntityNormalizer.matchKey("International Business Machines Corporation")).isEqualTo("international business machines");
+        assertThat(EntityNormalizer.matchKey("Acme Co., Ltd.")).isEqualTo("acme");
+        assertThat(EntityNormalizer.matchKey("Foo Holdings PLC")).isEqualTo("foo holdings");
+    }
+
+    @Test
+    void matchKeyRemovesALeadingTheAndCollapsesWhitespace() {
+        assertThat(EntityNormalizer.matchKey("  The   Coca-Cola  Company ")).isEqualTo("coca cola company");
+        assertThat(EntityNormalizer.matchKey("Theranos")).isEqualTo("theranos");
+    }
+
+    @Test
+    void matchKeyKeepsSuffixWordsThatAreNotTrailing() {
+        assertThat(EntityNormalizer.matchKey("Co-op Bank")).isEqualTo("co op bank");
+        assertThat(EntityNormalizer.matchKey("Limited Edition")).isEqualTo("limited edition");
+    }
+
+    @Test
+    void matchKeyFallsBackToTheNormalizedNameWhenNothingIsLeft() {
+        assertThat(EntityNormalizer.matchKey("Inc.")).isEqualTo("inc.");
+        assertThat(EntityNormalizer.matchKey("The")).isEqualTo("the");
+        assertThat(EntityNormalizer.matchKey("&")).isEqualTo("&");
+        assertThat(EntityNormalizer.matchKey(null)).isEmpty();
+    }
 }

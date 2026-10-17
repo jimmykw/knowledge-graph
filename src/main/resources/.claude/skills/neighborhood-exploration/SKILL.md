@@ -30,7 +30,10 @@ and Y connected?") — that is a different skill.
 
 ## Graph conventions
 
-- Entity nodes match on `name_norm` (trim + lowercase). Use `toLower($name)`.
+- Entity nodes match on `name_norm` (trim + lowercase) or any of their other names in
+  `aliases_norm`. Use `toLower($name)`.
+- `:Document` nodes point at the entities they mention with `MENTIONS` edges. They are
+  provenance, not neighbours: keep them out with `NOT neighbor:Document`.
 - Relationships carry a `description` property — include it in results.
 - Relationship types are dynamic; never hard-code a type unless the schema lists it.
 - Node labels are dynamic; use the schema's label list.
@@ -40,8 +43,8 @@ and Y connected?") — that is a different skill.
 ### 1-hop neighborhood (direct relationships)
 
 ```cypher
-MATCH (e) WHERE e.name_norm = toLower($name) AND e.name IS NOT NULL
-OPTIONAL MATCH (e)-[r]-(neighbor) WHERE id(neighbor) <> id(e)
+MATCH (e) WHERE (e.name_norm = toLower($name) OR toLower($name) IN e.aliases_norm) AND e.name IS NOT NULL
+OPTIONAL MATCH (e)-[r]-(neighbor) WHERE neighbor <> e AND NOT neighbor:Document
 RETURN e.name AS entityName, e.label AS entityLabel,
        type(r) AS relType, r.description AS relDesc,
        neighbor.name AS neighborName, neighbor.label AS neighborLabel,
@@ -50,16 +53,17 @@ ORDER BY relType, neighborLabel
 ```
 
 `OPTIONAL MATCH` returns the entity row even when it has no neighbors (so you can
-confirm the entity was found), and `id(neighbor) <> id(e)` excludes self-loops.
+confirm the entity was found), `neighbor <> e` excludes self-loops and
+`NOT neighbor:Document` leaves out the documents that mention the entity.
 The `e.name IS NOT NULL` filter excludes `:Document` and `:Schema` metadata nodes
 from the match.
 
 ### 2-hop neighborhood (broader exploration)
 
 ```cypher
-MATCH (e) WHERE e.name_norm = toLower($name) AND e.name IS NOT NULL
+MATCH (e) WHERE (e.name_norm = toLower($name) OR toLower($name) IN e.aliases_norm) AND e.name IS NOT NULL
 MATCH (e)-[r1]-(m)-[r2]-(neighbor)
-WHERE id(neighbor) <> id(e)
+WHERE neighbor <> e AND NOT m:Document AND NOT neighbor:Document
 RETURN type(r1) AS firstHop, m.name AS viaNode, m.label AS viaLabel,
        type(r2) AS secondHop,
        neighbor.name AS neighborName, neighbor.label AS neighborLabel,
@@ -74,13 +78,14 @@ If the user's question implies direction ("what does X depend on", "who reports
 to X"), use directed relationships:
 
 ```cypher
-MATCH (e) WHERE e.name_norm = toLower($name)
+MATCH (e) WHERE (e.name_norm = toLower($name) OR toLower($name) IN e.aliases_norm)
 MATCH (e)-[r]->(neighbor)
 RETURN type(r) AS relType, r.description AS relDesc,
        neighbor.name AS neighborName, neighbor.label AS neighborLabel
 ```
 
-Reverse the arrow `(e)<-[r]-(neighbor)` for incoming relationships.
+Reverse the arrow `(e)<-[r]-(neighbor)` for incoming relationships, and add
+`WHERE NOT neighbor:Document` (documents point at entities with `MENTIONS`).
 
 ### Verb-directed lookup ("what did X invent?")
 
@@ -113,7 +118,7 @@ Procedure — follow every step in order:
 5. Run one filtered query with every matched type in an `IN` list:
 
 ```cypher
-MATCH (e) WHERE e.name_norm = toLower($name)
+MATCH (e) WHERE (e.name_norm = toLower($name) OR toLower($name) IN e.aliases_norm)
 MATCH (e)-[r]->(neighbor)
 WHERE type(r) IN [/* every schema verb in the user-verb's synonym family, verbatim */]
 RETURN type(r) AS relType, r.description AS relDesc,

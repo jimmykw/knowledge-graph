@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import net.jimmykw.knowledgegraph.config.AppProperties;
 import net.jimmykw.knowledgegraph.exception.InvalidFileException;
 import net.jimmykw.knowledgegraph.extract.EntityExtractionService;
 import net.jimmykw.knowledgegraph.extract.EntityExtractionService.Pass1Result;
@@ -15,6 +16,7 @@ import net.jimmykw.knowledgegraph.extract.RelationshipExtractionService;
 import net.jimmykw.knowledgegraph.extract.RelationshipExtractionService.Pass2Result;
 import net.jimmykw.knowledgegraph.ingest.PdfIngestionService;
 import net.jimmykw.knowledgegraph.ingest.PdfIngestionService.IngestionResult;
+import net.jimmykw.knowledgegraph.resolve.EntityResolutionService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,8 @@ public class GraphController {
     private final PdfIngestionService ingestionService;
     private final EntityExtractionService entityExtractionService;
     private final RelationshipExtractionService relationshipExtractionService;
+    private final EntityResolutionService entityResolutionService;
+    private final AppProperties appProperties;
 
     @PostMapping(value = "/api/knowledge-graph", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public GraphSummaryResponse buildGraph(@RequestPart("file") MultipartFile file) {
@@ -43,8 +47,9 @@ public class GraphController {
         }
 
         val pass1Start = System.nanoTime();
-        val pass1 = entityExtractionService.extract(ingestion.chunks(), ingestion.documentHash());
-        log.info("Pass 1 (entity extraction) done in {}ms", elapsed(pass1Start));
+        val pass1 = extractEntities(ingestion);
+        log.info("Pass 1 (entity extraction{}) done in {}ms", appProperties.resolution().enabled() ? " and resolution" : "",
+                elapsed(pass1Start));
 
         val pass2Start = System.nanoTime();
         val pass2 = relationshipExtractionService.extract(ingestion.chunks(),
@@ -53,6 +58,13 @@ public class GraphController {
 
         log.info("Knowledge graph built in {}ms", elapsed(start));
         return processedResponse(ingestion, pass1, pass2, start);
+    }
+
+    /** With resolution on, pass 1 only extracts and the resolver writes; off, pass 1 writes with apoc.merge.node as before. */
+    private Pass1Result extractEntities(IngestionResult ingestion) {
+        return appProperties.resolution().enabled()
+                ? entityResolutionService.resolve(entityExtractionService.extractEntities(ingestion.chunks()), ingestion.documentHash())
+                : entityExtractionService.extract(ingestion.chunks(), ingestion.documentHash());
     }
 
     private static void validate(MultipartFile file) {
@@ -73,7 +85,7 @@ public class GraphController {
 
     private static GraphSummaryResponse skippedResponse(IngestionResult ingestion, long startNanos) {
         return new GraphSummaryResponse(ingestion.documentId(), ingestion.documentHash(),
-                ingestion.status(), 0, 0, Map.of(), Map.of(), 0, elapsed(startNanos));
+                ingestion.status(), 0, 0, Map.of(), Map.of(), 0, elapsed(startNanos), 0, 0, 0);
     }
 
     private static GraphSummaryResponse processedResponse(IngestionResult ingestion, Pass1Result pass1,
@@ -82,7 +94,7 @@ public class GraphController {
         return new GraphSummaryResponse(ingestion.documentId(), ingestion.documentHash(),
                 ingestion.status(), pass1.nodeCount(), pass2.relationshipCount(),
                 pass1.countsByLabel().toJavaMap(), pass2.countsByType().toJavaMap(),
-                failedChunks, elapsed(startNanos));
+                failedChunks, elapsed(startNanos), pass1.entitiesCreated(), pass1.entitiesMerged(), pass1.unresolvedEntities());
     }
 
     private static long elapsed(long startNanos) {

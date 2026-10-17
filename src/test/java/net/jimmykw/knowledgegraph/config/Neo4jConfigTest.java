@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import lombok.val;
 import net.jimmykw.knowledgegraph.exception.Neo4jUnavailableException;
+import net.jimmykw.knowledgegraph.graph.Neo4jGraphWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.neo4j.driver.Driver;
@@ -22,14 +25,44 @@ class Neo4jConfigTest {
 
     private Driver driver;
     private Session session;
+    private Neo4jGraphWriter writer;
     private ApplicationRunner probe;
 
     @BeforeEach
     void setUp() {
         driver = mock(Driver.class);
         session = mock(Session.class);
+        writer = mock(Neo4jGraphWriter.class);
         when(driver.session()).thenReturn(session);
-        probe = new Neo4jConfig().apocProbe(driver);
+        probe = new Neo4jConfig().apocProbe(driver, writer, props(false));
+    }
+
+    private static AppProperties props(boolean resolution) {
+        return new AppProperties(0, 0, null, null, null, null, new AppProperties.Resolution(resolution, 0, 0, 0));
+    }
+
+    @Test
+    void resolutionSchemaIsCreatedAfterASuccessfulProbeOnlyWhenTheFlagIsOn() throws Exception {
+        when(session.run(anyString())).thenReturn(mock(Result.class));
+
+        probe.run(null);
+        verify(writer, never()).ensureSchema();
+
+        new Neo4jConfig().apocProbe(driver, writer, props(true)).run(null);
+        verify(writer).ensureSchema();
+    }
+
+    @Test
+    void resolutionSchemaIsSkippedWhenNeo4jIsDownAndAFailureIsOnlyWarned() throws Exception {
+        when(session.run(anyString())).thenThrow(new ServiceUnavailableException("no route"));
+
+        new Neo4jConfig().apocProbe(driver, writer, props(true)).run(null);
+        verify(writer, never()).ensureSchema();
+
+        org.mockito.Mockito.reset(session);
+        when(session.run(anyString())).thenReturn(mock(Result.class));
+        org.mockito.Mockito.doThrow(new IllegalStateException("index failed")).when(writer).ensureSchema();
+        assertThatCode(() -> new Neo4jConfig().apocProbe(driver, writer, props(true)).run(null)).doesNotThrowAnyException();
     }
 
     @Test

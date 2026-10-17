@@ -30,9 +30,9 @@ import org.springframework.ai.document.Document;
 class RelationshipExtractionServiceTest {
 
     private static final CanonicalIndex INDEX = CanonicalIndex.empty()
-            .put(entity("IBM", "Organization"), 1L)
-            .put(entity("Watson", "Person"), 2L)
-            .put(entity("Mainframe", "Technology"), 3L);
+            .put(entity("IBM", "Organization"), "id-1")
+            .put(entity("Watson", "Person"), "id-2")
+            .put(entity("Mainframe", "Technology"), "id-3");
 
     private ExtractionPrompter prompter;
     private Neo4jGraphWriter writer;
@@ -45,9 +45,9 @@ class RelationshipExtractionServiceTest {
         writer = mock(Neo4jGraphWriter.class);
         when(writer.mergeRelationships(any())).thenAnswer(invocation -> {
             val unique = invocation.<List<ResolvedRelationship>>getArgument(0);
-            return unique.zipWithIndex().foldLeft(HashMap.<Integer, Long>empty(), (acc, pair) -> acc.put(pair._2, 500L + pair._2));
+            return unique.zipWithIndex().foldLeft(HashMap.<Integer, String>empty(), (acc, pair) -> acc.put(pair._2, "rel-" + pair._2));
         });
-        service = new RelationshipExtractionService(prompter, writer, new AppProperties(0, 0, null, null, null, null));
+        service = new RelationshipExtractionService(prompter, writer, new AppProperties(0, 0, null, null, null, null, null));
     }
 
     @AfterEach
@@ -94,7 +94,7 @@ class RelationshipExtractionServiceTest {
         val result = service.extract(chunks("chunk-a"), INDEX, "h");
 
         assertThat(result.relationshipCount()).isEqualTo(1);
-        assertThat(written()).containsExactly(new ResolvedRelationship(2L, 1L, "WORKS_FOR", "WORKS_FOR description", "Watson", "ibm"));
+        assertThat(written()).containsExactly(new ResolvedRelationship("id-2", "id-1", "WORKS_FOR", "WORKS_FOR description", "Watson", "ibm"));
     }
 
     @Test
@@ -104,8 +104,8 @@ class RelationshipExtractionServiceTest {
         val result = service.extract(chunks("chunk-a"), INDEX, "h");
 
         assertThat(result.relationshipCount()).isEqualTo(1);
-        assertThat(written().head().sourceId()).isEqualTo(2L);
-        assertThat(written().head().targetId()).isEqualTo(1L);
+        assertThat(written().head().sourceId()).isEqualTo("id-2");
+        assertThat(written().head().targetId()).isEqualTo("id-1");
     }
 
     @Test

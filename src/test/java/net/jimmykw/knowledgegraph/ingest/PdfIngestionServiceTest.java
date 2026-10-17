@@ -33,11 +33,11 @@ class PdfIngestionServiceTest {
     void setUp() {
         writer = mock(Neo4jGraphWriter.class);
         when(writer.findDocumentId(anyString())).thenReturn(Option.none());
-        when(writer.mergeDocument(anyString(), anyString())).thenReturn(11L);
+        when(writer.mergeDocument(anyString(), anyString())).thenReturn("11");
     }
 
     private PdfIngestionService service(int maxPages, int chunkTokens) {
-        return new PdfIngestionService(writer, new AppProperties(maxPages, chunkTokens, null, null, null, null));
+        return new PdfIngestionService(writer, new AppProperties(maxPages, chunkTokens, null, null, null, null, null));
     }
 
     private static MockMultipartFile upload(byte[] bytes) {
@@ -65,7 +65,7 @@ class PdfIngestionServiceTest {
     @Test
     void duplicateIsSkippedWithoutParsingOrWriting() throws Exception {
         val garbage = PdfFixtures.garbage();
-        when(writer.findDocumentId(sha256(garbage))).thenReturn(Option.some(99L));
+        when(writer.findDocumentId(sha256(garbage))).thenReturn(Option.some("99"));
 
         val result = service(10, 1000).ingest(upload(garbage));
 

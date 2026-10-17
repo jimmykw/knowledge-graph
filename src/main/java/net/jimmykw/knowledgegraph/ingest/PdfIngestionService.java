@@ -45,7 +45,7 @@ public class PdfIngestionService {
         val existing = writer.findDocumentId(hash);
         if (existing.isDefined()) {
             log.info("Duplicate document detected (hash={}); skipping extraction", hash);
-            return new IngestionResult(String.valueOf(existing.get()), hash, STATUS_SKIPPED_DUPLICATE, List.empty());
+            return new IngestionResult(existing.get(), hash, STATUS_SKIPPED_DUPLICATE, List.empty());
         }
 
         log.info("Reading PDF: '{}', {} bytes", file.getOriginalFilename(), bytes.length);
@@ -59,7 +59,7 @@ public class PdfIngestionService {
         log.info("PDF ingested: hash={}, pages={}, chunks={}", hash, pages.size(), chunks.length());
         val docId = writer.mergeDocument(hash, file.getOriginalFilename());
 
-        return new IngestionResult(String.valueOf(docId), hash, STATUS_PROCESSED, chunks);
+        return new IngestionResult(docId, hash, STATUS_PROCESSED, chunks);
     }
 
     private Try<List<Document>> readPages(byte[] bytes) {

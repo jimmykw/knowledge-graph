@@ -140,7 +140,20 @@ tasks.register<org.gradle.api.tasks.testing.Test>("judgeEval") {
     }
 }
 
-val nodeOnPath = (System.getenv("PATH") ?: "").split(File.pathSeparator).any { dir -> File(dir, "node").canExecute() }
+// A JavaExec, not a Test task: it writes to the real graph. Plan mode (default) migrates and writes build/reports/resolve/plan.*;
+// -Dresolve.apply=true -Dresolve.backupConfirmed=true applies the plan. -Dresolve.* is forwarded to the JVM.
+tasks.register<JavaExec>("resolveGraph") {
+    group = "application"
+    description = "One-time entity-resolution cleanup of the existing graph (plan by default; see AGENTS.md)."
+    mainClass = "net.jimmykw.knowledgegraph.resolve.ResolveGraphCommand"
+    classpath = sourceSets.main.get().runtimeClasspath
+    workingDir = projectDir
+    System.getProperties().stringPropertyNames()
+        .filter { name -> name.startsWith("resolve.") }
+        .forEach { name -> systemProperty(name, System.getProperty(name)) }
+}
+
+val nodeOnPath =(System.getenv("PATH") ?: "").split(File.pathSeparator).any { dir -> File(dir, "node").canExecute() }
 
 tasks.register<Exec>("jsTest") {
     group = "verification"

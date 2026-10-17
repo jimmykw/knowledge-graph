@@ -28,6 +28,10 @@ import net.jimmykw.knowledgegraph.extract.ExtractionRecords.ExtractionResult;
 import net.jimmykw.knowledgegraph.extract.RelationshipExtractionService;
 import net.jimmykw.knowledgegraph.graph.Neo4jGraphWriter;
 import net.jimmykw.knowledgegraph.ingest.PdfIngestionService;
+import net.jimmykw.knowledgegraph.resolve.EntityResolutionService;
+import net.jimmykw.knowledgegraph.resolve.ResolutionPrompter;
+import net.jimmykw.knowledgegraph.resolve.ResolutionRecords.ResolutionResponse;
+import net.jimmykw.knowledgegraph.util.JsonPrompter;
 
 import io.vavr.control.Option;
 import lombok.val;
@@ -55,6 +59,17 @@ public class AppConfig {
     RelationshipExtractionService relationshipExtractionService(ExtractionPrompter prompter, Neo4jGraphWriter writer,
                                                                    AppProperties appProperties) {
         return new RelationshipExtractionService(prompter, writer, appProperties);
+    }
+
+    @Bean
+    ResolutionPrompter resolutionPrompter(ChatClient chatClient) {
+        return new ResolutionPrompter(new JsonPrompter<>(chatClient, new BeanOutputConverter<>(ResolutionResponse.class)));
+    }
+
+    @Bean
+    EntityResolutionService entityResolutionService(Neo4jGraphWriter writer, ResolutionPrompter resolutionPrompter,
+                                                    AppProperties appProperties) {
+        return new EntityResolutionService(writer, resolutionPrompter, appProperties);
     }
 
     @Bean

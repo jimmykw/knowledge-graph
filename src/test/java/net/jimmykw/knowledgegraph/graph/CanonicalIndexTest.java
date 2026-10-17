@@ -22,44 +22,44 @@ class CanonicalIndexTest {
     @Test
     void putOfExistingNormalizedNameAndLabelKeepsFirstId() {
         val index = CanonicalIndex.empty()
-                .put(IBM, 1L)
-                .put(new ExtractedEntity("  ibm ", "Organization", "dup"), 2L);
+                .put(IBM, "id-1")
+                .put(new ExtractedEntity("  ibm ", "Organization", "dup"), "id-2");
 
         assertThat(index.size()).isEqualTo(1);
-        assertThat(index.lookup("IBM", "Organization")).contains(1L);
+        assertThat(index.lookup("IBM", "Organization")).contains("id-1");
         assertThat(index.entities()).containsExactly(IBM);
     }
 
     @Test
     void lookupIsExactOnNormalizedNameAndLabel() {
-        val index = CanonicalIndex.empty().put(IBM, 7L);
-        assertThat(index.lookup("  ibm", "Organization")).contains(7L);
+        val index = CanonicalIndex.empty().put(IBM, "id-7");
+        assertThat(index.lookup("  ibm", "Organization")).contains("id-7");
     }
 
     @Test
     void lookupFallsBackToNameWhenLabelDiffers() {
-        val index = CanonicalIndex.empty().put(IBM, 7L);
-        assertThat(index.lookup("IBM", "Company")).contains(7L);
+        val index = CanonicalIndex.empty().put(IBM, "id-7");
+        assertThat(index.lookup("IBM", "Company")).contains("id-7");
     }
 
     @Test
     void exactLabelMatchWinsOverNameOnlyFallback() {
         val index = CanonicalIndex.empty()
-                .put(new ExtractedEntity("Apple", "Fruit", ""), 1L)
-                .put(new ExtractedEntity("Apple", "Organization", ""), 2L);
-        assertThat(index.lookup("Apple", "Organization")).contains(2L);
-        assertThat(index.lookup("Apple", "Fruit")).contains(1L);
+                .put(new ExtractedEntity("Apple", "Fruit", ""), "id-1")
+                .put(new ExtractedEntity("Apple", "Organization", ""), "id-2");
+        assertThat(index.lookup("Apple", "Organization")).contains("id-2");
+        assertThat(index.lookup("Apple", "Fruit")).contains("id-1");
     }
 
     @Test
     void lookupMissReturnsNone() {
-        val index = CanonicalIndex.empty().put(IBM, 7L);
+        val index = CanonicalIndex.empty().put(IBM, "id-7");
         assertThat(index.lookup("Nobody", "Person")).isEmpty();
     }
 
     @Test
     void entitiesKeepInsertionOrder() {
-        val index = CanonicalIndex.empty().put(WATSON, 1L).put(IBM, 2L);
+        val index = CanonicalIndex.empty().put(WATSON, "id-1").put(IBM, "id-2");
         assertThat(index.entities()).containsExactly(WATSON, IBM);
         assertThat(index.size()).isEqualTo(2);
     }

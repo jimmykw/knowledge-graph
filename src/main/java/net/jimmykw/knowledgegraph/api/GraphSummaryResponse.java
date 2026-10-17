@@ -11,5 +11,8 @@ public record GraphSummaryResponse(
         Map<String, Integer> countsByLabel,
         Map<String, Integer> countsByType,
         int failedChunks,
-        long processingTimeMs) {
+        long processingTimeMs,
+        int entitiesCreated,
+        int entitiesMerged,
+        int unresolvedEntities) {
 }
