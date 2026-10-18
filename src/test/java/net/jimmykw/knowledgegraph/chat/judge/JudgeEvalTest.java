@@ -62,7 +62,7 @@ class JudgeEvalTest {
 
     private static final List<Case> CASES = List.of(
             golden("golden: IBM create", "What did IBM create?", List.empty(), IBM_CREATED,
-                    "IBM created FORTRAN, System/360, SAGE, the Universal Product Code, OS/2 and the Selectric typewriter."),
+                    "IBM created FORTRAN, System/360, SAGE, the Universal Product Code, OS/2 and the Selectric."),
             golden("golden: IBM invent", "What did IBM invent?", List.empty(),
                     List.of(rows("MATCH (:Organization {name:'IBM'})-[:INVENTED]->(x) RETURN x.name AS name", "FORTRAN",
                             "magnetic stripe", "RISC architecture", "UPC")),
@@ -78,7 +78,8 @@ class JudgeEvalTest {
                     List.of(facts("MATCH (n) WHERE toLower(n.description) CONTAINS 'hard disk' RETURN n.name AS name, n.description AS description",
                             Map.of("name", "RAMAC", "description", "IBM 305 RAMAC, the first commercial hard disk drive"),
                             Map.of("name", "Seagate", "description", "Company that makes hard disk drives"))),
-                    "The graph mentions the RAMAC, the first commercial hard disk drive, and Seagate, a company that makes hard disk drives."),
+                    "The graph has two entries about hard disks. The IBM 305 RAMAC is described as the first commercial hard disk drive, "
+                            + "and Seagate is described as a company that makes hard disk drives. That is all the graph returned on the topic."),
             golden("golden: collaborations follow-up", "which of those were collaborations with other companies?", IBM_HISTORY,
                     List.of(facts("MATCH (p {name:'IBM'})-[r:COLLABORATED_WITH]->(c) RETURN c.name AS partner, r.description AS project",
                             Map.of("partner", "University of Michigan", "project", "NSFNet"),
