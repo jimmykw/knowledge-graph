@@ -28,7 +28,7 @@ starter and is configured entirely through `spring.ai.typesafe.*`. Behavior of t
 - UI: `static/js/trace.js` `qualityChip()/qualityTitle()` read `quality.grounded`, `quality.relevance`, `quality.minScore`.
 - Spike results (branch `spike/typesafe-sdk`, `TypeSafeSdkSpikeTest`):
   - The SDK appends `/v1/systemone`, so the base URL must be `https://openrouter.ai/api` (`/api/v1` gives a 404 at `/api/v1/v1/systemone`).
-  - `typesafe/jev-1.13` works with the existing `OPENAI_API_KEY`. `Choice`/`Score` give the same answers as the current REST call.
+  - `typesafe/jev-1.14` works with the existing `OPENAI_API_KEY`. `Choice`/`Score` give the same answers as the current REST call.
   - Default retry policy is 2 retries, 30s total; against an unreachable host with a 1s timeout it took 4.3s, so it must be configured.
   - `JevJudge` throws `TypeSafeApiException` subclasses on auth, timeout and connection failures; it does not turn them into ERROR findings.
   - A thin-evidence answer scored `grounded=FAILED` at minimum level 2 (feedback: `grounded: rated "Some claims supported" (0.83), needs to reach 2.00 ...`).
@@ -53,7 +53,7 @@ spring:
     typesafe:
       api-key: ${OPENAI_API_KEY}
       base-url: https://openrouter.ai/api   # SDK appends /v1/systemone
-      model: typesafe/jev-1.13              # pinned, not jev-latest
+      model: typesafe/jev-1.14              # pinned, not jev-latest
       timeout: 3s                           # per attempt
       retry:
         max-retries: 1

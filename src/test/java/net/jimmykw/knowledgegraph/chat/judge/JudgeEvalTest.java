@@ -18,7 +18,7 @@ import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.UserMessage;
 
 /**
- * Real-API eval of the answer judge (OpenRouter System One, typesafe/jev-1.13 through the spring-ai-typesafe JevJudge). Needs OPENAI_API_KEY (the OpenRouter key).
+ * Real-API eval of the answer judge (OpenRouter System One, typesafe/jev-1.14 through the spring-ai-typesafe JevJudge). Needs OPENAI_API_KEY (the OpenRouter key).
  * Hard gate: the six golden-case answers, built from fixed rows, are never LOW and never SKIPPED. Reported: how many good answers are
  * wrongly flagged LOW and how many bad answers are caught.
  */
@@ -156,7 +156,7 @@ class JudgeEvalTest {
     private static AnswerJudge judge() {
         val key = System.getenv("OPENAI_API_KEY");
         assertThat(key).as("OPENAI_API_KEY (OpenRouter key) must be set").isNotBlank();
-        val client = TypeSafeClient.builder().baseUrl("https://openrouter.ai/api").apiKey(key).defaultModel("typesafe/jev-1.13")
+        val client = TypeSafeClient.builder().baseUrl("https://openrouter.ai/api").apiKey(key).defaultModel("typesafe/jev-1.14")
                 .timeout(Duration.ofSeconds(10)).retryPolicy(RetryPolicy.defaults()).build();
         return new JevAnswerJudge(JevAnswerJudge.buildJudge(client), 8000);
     }

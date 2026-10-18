@@ -33,7 +33,7 @@ class TypeSafeConfigTest {
         runner.withPropertyValues("OPENAI_API_KEY=test-key").run(context -> {
             assertThat(context).hasSingleBean(TypeSafeClient.class);
             val client = context.getBean(TypeSafeClient.class);
-            assertThat(client.defaultModel()).isEqualTo("typesafe/jev-1.13");
+            assertThat(client.defaultModel()).isEqualTo("typesafe/jev-1.14");
             assertThat(client.timeout()).isEqualTo(Duration.ofSeconds(3));
             assertThat(client.retryPolicy().maxRetries()).isEqualTo(1);
             assertThat(client.retryPolicy().totalTimeout()).isEqualTo(Duration.ofSeconds(5));

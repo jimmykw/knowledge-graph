@@ -32,8 +32,7 @@ app:
       # Active: OpenRouter (OpenAI-compatible) for faster, genuinely-parallel extraction.
       base-url: https://openrouter.ai/api/v1
       api-key: ${OPENAI_API_KEY}
-      model: stealth/space-bunny-alpha
-#      model: z-ai/glm-5.3-flash
+      model: z-ai/glm-5.3-flash
       temperature: 0.1
       timeout: 600s
       max-retries: 5
@@ -46,8 +45,7 @@ app:
     chat:
       base-url: https://openrouter.ai/api/v1
       api-key: ${OPENAI_API_KEY}
-      model: stealth/space-bunny-alpha
-#      model: z-ai/glm-5.3-flash
+      model: z-ai/glm-5.3-flash
 #      base-url: https://opencode.ai/zen/go/v1
 #      model: glm-5.3-flash
 #      model: glm-5.3
@@ -68,7 +66,7 @@ spring:
       # One shared TypeSafeClient (spring-ai-starter-typesafe) for the intent gate and the answer judge.
       api-key: ${OPENAI_API_KEY}
       base-url: https://openrouter.ai/api   # the SDK appends /v1/systemone
-      model: typesafe/jev-1.13              # pinned, not jev-latest
+      model: typesafe/jev-1.14              # pinned, not jev-latest
       timeout: 3s                           # per attempt
       retry:
         max-retries: 1
